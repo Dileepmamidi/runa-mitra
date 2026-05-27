@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Runa Mitra logo">
+  <rect width="128" height="128" rx="28" fill="#137a5b"/>
+  <path d="M35 31h54a11 11 0 0 1 11 11v58H35a11 11 0 0 1-11-11V42a11 11 0 0 1 11-11Z" fill="#fff8e8"/>
+  <path d="M41 50h38M41 67h48M41 84h31" stroke="#137a5b" stroke-width="8" stroke-linecap="round"/>
+  <circle cx="93" cy="89" r="20" fill="#e9a316"/>
+  <path d="M82 89h22M93 78v22" stroke="#fff8e8" stroke-width="7" stroke-linecap="round"/>
+</svg>

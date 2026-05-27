@@ -1,0 +1,17 @@
+{
+  "name": "Runa Mitra",
+  "short_name": "Runa Mitra",
+  "description": "Smart Digital Loan Ledger for Village Lenders",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#faf7f0",
+  "theme_color": "#137a5b",
+  "icons": [
+    {
+      "src": "/logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

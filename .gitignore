@@ -1,0 +1,50 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build output
+dist/
+build/
+
+# Environment variables (NEVER commit these)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+dev-server.out.log
+dev-server.err.log
+vite.out.log
+vite.err.log
+vite.spawn.out.log
+vite.spawn.err.log
+preview-server.log
+static-server.log
+
+# Runtime files
+preview-server.ready
+site-ready.txt
+
+# Editor directories and files
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Firebase
+.firebase/
+firebase-debug.log
