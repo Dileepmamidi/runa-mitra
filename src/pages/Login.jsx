@@ -16,21 +16,24 @@ export function Login() {
   const verifierRef = useRef(null);
   const navigate = useNavigate();
 
-  // Setup reCAPTCHA once when component mounts
+  const setupVerifier = () => {
+    if (verifierRef.current) return;
+    verifierRef.current = new RecaptchaVerifier(auth, "recaptcha-container", {
+      size: "normal",
+      callback: () => {
+        // reCAPTCHA solved — ready to send OTP
+      },
+      "expired-callback": () => {
+        verifierRef.current = null;
+        setupVerifier();
+      }
+    });
+    verifierRef.current.render();
+  };
+
   useEffect(() => {
-    if (!verifierRef.current) {
-      verifierRef.current = new RecaptchaVerifier(auth, "recaptcha-container", {
-        size: "invisible",
-        callback: () => {},
-        "expired-callback": () => {
-          verifierRef.current = null;
-        }
-      });
-      // Pre-render it so it's ready when user clicks
-      verifierRef.current.render().catch(() => {});
-    }
+    setupVerifier();
     return () => {
-      // cleanup on unmount
       if (verifierRef.current) {
         try { verifierRef.current.clear(); } catch (_) {}
         verifierRef.current = null;
@@ -48,26 +51,17 @@ export function Login() {
     try {
       setLoading(true);
       const formatted = trimmed.startsWith("+") ? trimmed : `+91${trimmed}`;
-
-      // If verifier was cleared due to expiry, recreate it
-      if (!verifierRef.current) {
-        verifierRef.current = new RecaptchaVerifier(auth, "recaptcha-container", {
-          size: "invisible",
-          callback: () => {},
-        });
-        await verifierRef.current.render();
-      }
-
+      if (!verifierRef.current) setupVerifier();
       const confirmation = await signInWithPhoneNumber(auth, formatted, verifierRef.current);
       confirmationRef.current = confirmation;
       setOtpSent(true);
     } catch (err) {
-      console.error("OTP error:", err);
-      // Reset verifier on error so it can be recreated fresh
+      console.error("OTP error:", err.code, err.message);
       if (verifierRef.current) {
         try { verifierRef.current.clear(); } catch (_) {}
         verifierRef.current = null;
       }
+      setTimeout(() => setupVerifier(), 300);
       setError("OTP పంపడంలో తప్పు జరిగింది: " + (err.message || "మళ్ళీ ప్రయత్నించండి."));
     } finally {
       setLoading(false);
@@ -99,9 +93,6 @@ export function Login() {
         <h1 className="mt-5 text-3xl font-black text-slate-950">మొబైల్ లాగిన్</h1>
         <p className="mt-2 text-sm font-semibold text-slate-500">OTP ద్వారా సురక్షితంగా లోపలికి వెళ్లండి.</p>
 
-        {/* reCAPTCHA mounts here — must stay in DOM */}
-        <div id="recaptcha-container" />
-
         {error && (
           <div className="mt-3 rounded-[6px] bg-red-50 px-3 py-2 text-sm font-semibold text-red-600">
             {error}
@@ -118,6 +109,14 @@ export function Login() {
               disabled={otpSent}
             />
           </Field>
+
+          {/* Visible reCAPTCHA renders here */}
+          {!otpSent && (
+            <div className="flex justify-center">
+              <div id="recaptcha-container" />
+            </div>
+          )}
+
           {otpSent && (
             <Field label="OTP">
               <TextInput
@@ -129,6 +128,7 @@ export function Login() {
               />
             </Field>
           )}
+
           <label className="flex items-center gap-3 text-sm font-bold text-slate-700">
             <input type="checkbox" className="h-5 w-5 accent-leaf-600" defaultChecked />
             Remember this device
@@ -137,16 +137,18 @@ export function Login() {
             <input type="checkbox" className="h-5 w-5 accent-leaf-600" />
             <LockKeyhole size={17} /> Enable PIN lock
           </label>
+
           <ActionButton
             onClick={otpSent ? handleVerifyOtp : handleSendOtp}
             disabled={loading}
           >
             {loading ? "వేచి ఉండండి..." : otpSent ? "Verify OTP" : "Send OTP"}
           </ActionButton>
+
           {otpSent && (
             <button
               className="text-sm font-semibold text-leaf-600 underline"
-              onClick={() => { setOtpSent(false); setOtp(""); setError(""); }}
+              onClick={() => { setOtpSent(false); setOtp(""); setError(""); setTimeout(setupVerifier, 300); }}
             >
               మొబైల్ నంబర్ మార్చండి
             </button>
