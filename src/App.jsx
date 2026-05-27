@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { AppFrame } from "./components/AppFrame";
+import { AuthGuard } from "./components/AuthGuard";
 import { AddBorrower } from "./pages/AddBorrower";
 import { AddLoan } from "./pages/AddLoan";
 import { AgreementGeneration } from "./pages/AgreementGeneration";
@@ -31,10 +32,19 @@ import { Splash } from "./pages/Splash";
 export default function App() {
   return (
     <Routes>
-      <Route element={<AppFrame />}>
-        <Route path="/" element={<Splash />} />
-        <Route path="/language" element={<LanguageSelection />} />
-        <Route path="/login" element={<Login />} />
+      {/* Public routes — no login needed */}
+      <Route path="/" element={<Splash />} />
+      <Route path="/language" element={<LanguageSelection />} />
+      <Route path="/login" element={<Login />} />
+
+      {/* Protected routes — must be logged in */}
+      <Route
+        element={
+          <AuthGuard>
+            <AppFrame />
+          </AuthGuard>
+        }
+      >
         <Route path="/profile-setup" element={<ProfileSetup />} />
         <Route path="/home" element={<HomeDashboard />} />
         <Route path="/borrowers" element={<BorrowersList />} />
