@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { LockKeyhole, Smartphone } from "lucide-react";
 import { ActionButton } from "../components/ActionButton";
 import { Field, TextInput } from "../components/FormControls";
-import { createOtpVerifier, requestOtp } from "../config/firebase";
+import { getOtpVerifier, clearOtpVerifier, requestOtp } from "../config/firebase";
 
 export function Login() {
   const [phone, setPhone] = useState("");
@@ -22,12 +22,13 @@ export function Login() {
     }
     try {
       setLoading(true);
-      const verifier = createOtpVerifier("recaptcha-container");
+      const verifier = getOtpVerifier("recaptcha-container");
       const formatted = phone.startsWith("+") ? phone : `+91${phone.replace(/\s/g, "")}`;
       const confirmation = await requestOtp(formatted, verifier);
       confirmationRef.current = confirmation;
       setOtpSent(true);
     } catch (err) {
+      clearOtpVerifier();
       setError("OTP పంపడంలో తప్పు జరిగింది: " + (err.message || "మళ్ళీ ప్రయత్నించండి."));
     } finally {
       setLoading(false);
@@ -46,6 +47,7 @@ export function Login() {
       navigate("/home");
     } catch (err) {
       setError("OTP తప్పు లేదా expired అయింది. మళ్ళీ ప్రయత్నించండి.");
+      clearOtpVerifier();
     } finally {
       setLoading(false);
     }

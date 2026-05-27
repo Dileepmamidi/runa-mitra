@@ -21,10 +21,21 @@ enableIndexedDbPersistence(db).catch(() => {
   // Persistence can fail in private mode or multi-tab sessions; app still works online.
 });
 
-export function createOtpVerifier(containerId = "recaptcha-container") {
-  return new RecaptchaVerifier(auth, containerId, {
-    size: "invisible"
-  });
+// Singleton verifier — reuse across calls to avoid invalid-app-credential
+let _verifier = null;
+
+export function getOtpVerifier(containerId = "recaptcha-container") {
+  if (!_verifier) {
+    _verifier = new RecaptchaVerifier(auth, containerId, { size: "invisible" });
+  }
+  return _verifier;
+}
+
+export function clearOtpVerifier() {
+  if (_verifier) {
+    _verifier.clear();
+    _verifier = null;
+  }
 }
 
 export function requestOtp(phoneNumber, verifier) {
