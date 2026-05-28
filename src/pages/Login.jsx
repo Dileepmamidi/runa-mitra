@@ -6,6 +6,14 @@ import { Field, TextInput } from "../components/FormControls";
 import { auth } from "../config/firebase";
 import { RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
 
+function makeVerifier() {
+  return new RecaptchaVerifier(auth, "recaptcha-container", {
+    size: "normal",
+    callback: () => {},
+    "expired-callback": () => {}
+  });
+}
+
 export function Login() {
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
@@ -16,30 +24,30 @@ export function Login() {
   const verifierRef = useRef(null);
   const navigate = useNavigate();
 
-  const setupVerifier = () => {
-    if (verifierRef.current) return;
-    verifierRef.current = new RecaptchaVerifier(auth, "recaptcha-container", {
-      size: "normal",
-      callback: () => {
-        // reCAPTCHA solved — ready to send OTP
-      },
-      "expired-callback": () => {
-        verifierRef.current = null;
-        setupVerifier();
-      }
-    });
-    verifierRef.current.render();
-  };
-
+  // Create & render verifier once on mount
   useEffect(() => {
-    setupVerifier();
+    const v = makeVerifier();
+    v.render().then(() => {
+      verifierRef.current = v;
+    }).catch(() => {});
+
     return () => {
-      if (verifierRef.current) {
-        try { verifierRef.current.clear(); } catch (_) {}
-        verifierRef.current = null;
-      }
+      try { v.clear(); } catch (_) {}
+      verifierRef.current = null;
     };
   }, []);
+
+  const resetVerifier = () => {
+    // Clear old and mount fresh verifier into container
+    if (verifierRef.current) {
+      try { verifierRef.current.clear(); } catch (_) {}
+      verifierRef.current = null;
+    }
+    const v = makeVerifier();
+    v.render().then(() => {
+      verifierRef.current = v;
+    }).catch(() => {});
+  };
 
   const handleSendOtp = async () => {
     setError("");
@@ -48,20 +56,19 @@ export function Login() {
       setError("దయచేసి valid mobile number ఇవ్వండి.");
       return;
     }
+    if (!verifierRef.current) {
+      setError("reCAPTCHA సిద్ధంగా లేదు. కొంచెం వేచి మళ్ళీ ప్రయత్నించండి.");
+      return;
+    }
     try {
       setLoading(true);
       const formatted = trimmed.startsWith("+") ? trimmed : `+91${trimmed}`;
-      if (!verifierRef.current) setupVerifier();
       const confirmation = await signInWithPhoneNumber(auth, formatted, verifierRef.current);
       confirmationRef.current = confirmation;
       setOtpSent(true);
     } catch (err) {
       console.error("OTP error:", err.code, err.message);
-      if (verifierRef.current) {
-        try { verifierRef.current.clear(); } catch (_) {}
-        verifierRef.current = null;
-      }
-      setTimeout(() => setupVerifier(), 300);
+      resetVerifier();
       setError("OTP పంపడంలో తప్పు జరిగింది: " + (err.message || "మళ్ళీ ప్రయత్నించండి."));
     } finally {
       setLoading(false);
@@ -91,7 +98,9 @@ export function Login() {
       <div className="rounded-[8px] bg-white p-5 shadow-soft">
         <Smartphone className="text-leaf-600" size={42} />
         <h1 className="mt-5 text-3xl font-black text-slate-950">మొబైల్ లాగిన్</h1>
-        <p className="mt-2 text-sm font-semibold text-slate-500">OTP ద్వారా సురక్షితంగా లోపలికి వెళ్లండి.</p>
+        <p className="mt-2 text-sm font-semibold text-slate-500">
+          OTP ద్వారా సురక్షితంగా లోపలికి వెళ్లండి.
+        </p>
 
         {error && (
           <div className="mt-3 rounded-[6px] bg-red-50 px-3 py-2 text-sm font-semibold text-red-600">
@@ -110,12 +119,10 @@ export function Login() {
             />
           </Field>
 
-          {/* Visible reCAPTCHA renders here */}
-          {!otpSent && (
-            <div className="flex justify-center">
-              <div id="recaptcha-container" />
-            </div>
-          )}
+          {/* reCAPTCHA — always in DOM so verifier always has a container */}
+          <div className={`flex justify-center ${otpSent ? "hidden" : ""}`}>
+            <div id="recaptcha-container" />
+          </div>
 
           {otpSent && (
             <Field label="OTP">
@@ -148,7 +155,12 @@ export function Login() {
           {otpSent && (
             <button
               className="text-sm font-semibold text-leaf-600 underline"
-              onClick={() => { setOtpSent(false); setOtp(""); setError(""); setTimeout(setupVerifier, 300); }}
+              onClick={() => {
+                setOtpSent(false);
+                setOtp("");
+                setError("");
+                resetVerifier();
+              }}
             >
               మొబైల్ నంబర్ మార్చండి
             </button>
