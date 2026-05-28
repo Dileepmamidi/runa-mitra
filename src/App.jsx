@@ -46,6 +46,17 @@ import { Splash } from "./pages/Splash";
 export default function App() {
   const { userRole, authLoading } = useApp();
 
+  if (authLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-soil-50">
+        <div className="text-center">
+          <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-leaf-600 border-t-transparent" />
+          <p className="mt-4 font-bold text-slate-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <Routes>
       {/* Public routes — no login needed */}
@@ -57,7 +68,7 @@ export default function App() {
       <Route element={<AuthGuard />}>
         
         {/* LENDER ROUTES */}
-        {userRole === "lender" && (
+        {userRole === "lender" ? (
           <Route element={<AppFrame />}>
             <Route path="/profile-setup" element={<ProfileSetup />} />
             <Route path="/home" element={<HomeDashboard />} />
@@ -85,10 +96,7 @@ export default function App() {
             <Route path="/profile" element={<Profile />} />
             <Route path="*" element={<Navigate to="/home" replace />} />
           </Route>
-        )}
-
-        {/* BORROWER ROUTES */}
-        {userRole === "borrower" && (
+        ) : userRole === "borrower" ? (
           <Route element={<BorrowerFrame />}>
             <Route path="/home" element={<BorrowerHome />} />
             <Route path="/loans/:id" element={<BorrowerLoanDetails />} />
@@ -98,8 +106,9 @@ export default function App() {
             <Route path="/notifications" element={<BorrowerNotifications />} />
             <Route path="*" element={<Navigate to="/home" replace />} />
           </Route>
+        ) : (
+          <Route path="*" element={<Navigate to="/login" replace />} />
         )}
-
       </Route>
     </Routes>
   );
