@@ -1,18 +1,63 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { BadgeCheck, FileCheck2, ShieldCheck, Upload } from "lucide-react";
 import { ActionButton } from "../components/ActionButton";
 import { Card, SectionTitle } from "../components/Card";
 import { Field, SelectInput, TextInput } from "../components/FormControls";
 import { StatusBadge } from "../components/StatusBadge";
 import { useApp } from "../context/AppContext";
+import { updateUserRecord, uploadEvidence } from "../services/firebaseService";
 
 export function AadhaarVerification() {
-  const { borrowers } = useApp();
+  const { user, borrowers, refreshData } = useApp();
+  const navigate = useNavigate();
+
+  const [borrowerId, setBorrowerId] = useState(borrowers[0]?.id || "");
   const [method, setMethod] = useState("Manual check");
   const [consent, setConsent] = useState(false);
-  const [last4, setLast4] = useState("4321");
+  const [last4, setLast4] = useState("");
+  const [nameAsPerAadhaar, setNameAsPerAadhaar] = useState("");
+  const [birthYear, setBirthYear] = useState("");
+  const [file, setFile] = useState(null);
+  
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  const canVerify = consent && last4.length === 4;
+  const canVerify = consent && last4.length === 4 && borrowerId;
+
+  const handleVerify = async () => {
+    setError("");
+    if (!user) return setError("Must be logged in");
+    if (!borrowerId) return setError("Select a borrower");
+
+    try {
+      setLoading(true);
+      let fileUrl = "";
+      if (file) {
+        fileUrl = await uploadEvidence(user.uid, file, ["aadhaar"]);
+      }
+
+      const aadhaarData = {
+        aadhaarStatus: "Verified",
+        aadhaarLast4: last4,
+        aadhaarName: nameAsPerAadhaar,
+        aadhaarBirthYear: birthYear,
+        aadhaarMethod: method,
+        aadhaarFileUrl: fileUrl,
+      };
+
+      // Update the borrower's document with Aadhaar info
+      await updateUserRecord(user.uid, "borrowers", borrowerId, aadhaarData);
+      
+      await refreshData();
+      navigate(`/borrowers/${borrowerId}`);
+    } catch (err) {
+      console.error(err);
+      setError("Failed to verify. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="mx-auto max-w-3xl md:ml-56">
@@ -25,6 +70,12 @@ export function AadhaarVerification() {
         </div>
         <StatusBadge status={canVerify ? "Low" : "Upcoming"} />
       </div>
+
+      {error && (
+        <div className="mt-4 rounded-[6px] bg-red-50 p-3 text-sm font-bold text-red-600">
+          {error}
+        </div>
+      )}
 
       <Card className="mt-4 border border-leaf-100 bg-leaf-50">
         <div className="flex gap-3">
@@ -43,14 +94,15 @@ export function AadhaarVerification() {
           <SectionTitle title="Borrower identity" />
           <div className="grid gap-4 md:grid-cols-2">
             <Field label="Borrower">
-              <SelectInput>
+              <SelectInput value={borrowerId} onChange={(e) => setBorrowerId(e.target.value)}>
+                <option value="">Select Borrower</option>
                 {borrowers.map((borrower) => (
-                  <option key={borrower.id}>{borrower.name}</option>
+                  <option key={borrower.id} value={borrower.id}>{borrower.name}</option>
                 ))}
               </SelectInput>
             </Field>
             <Field label="Name as per Aadhaar">
-              <TextInput placeholder="Borrower legal name" />
+              <TextInput value={nameAsPerAadhaar} onChange={(e) => setNameAsPerAadhaar(e.target.value)} placeholder="Borrower legal name" />
             </Field>
             <Field label="Aadhaar last 4 digits">
               <TextInput
@@ -62,17 +114,16 @@ export function AadhaarVerification() {
               />
             </Field>
             <Field label="Birth year">
-              <TextInput inputMode="numeric" placeholder="1985" />
+              <TextInput value={birthYear} onChange={(e) => setBirthYear(e.target.value)} inputMode="numeric" placeholder="1985" />
             </Field>
             <Field label="Verification method">
               <SelectInput value={method} onChange={(event) => setMethod(event.target.value)}>
                 <option>Manual check</option>
-                <option>OTP KYC provider placeholder</option>
                 <option>Masked Aadhaar upload</option>
               </SelectInput>
             </Field>
-            <Field label="Masked Aadhaar file">
-              <TextInput type="file" accept="image/*,.pdf" />
+            <Field label="Masked Aadhaar file (Camera)">
+              <TextInput type="file" accept="image/*,.pdf" capture="environment" onChange={(e) => setFile(e.target.files[0])} />
             </Field>
           </div>
 
@@ -87,11 +138,12 @@ export function AadhaarVerification() {
           </label>
 
           <div className="mt-5 grid grid-cols-2 gap-3">
-            <ActionButton disabled={!canVerify} className={!canVerify ? "opacity-50" : ""}>
-              <BadgeCheck size={18} /> Mark Verified
-            </ActionButton>
-            <ActionButton variant="secondary">
-              <Upload size={18} /> Save Draft
+            <ActionButton 
+              disabled={!canVerify || loading} 
+              className={!canVerify ? "opacity-50" : ""}
+              onClick={handleVerify}
+            >
+              <BadgeCheck size={18} /> {loading ? "Saving..." : "Mark Verified"}
             </ActionButton>
           </div>
         </Card>
@@ -112,25 +164,6 @@ export function AadhaarVerification() {
           </div>
         </Card>
       </div>
-
-      <Card className="mt-4">
-        <SectionTitle title="Verification history" />
-        <div className="grid gap-3 md:grid-cols-2">
-          {[
-            ["మల్లేశ్", "XXXX XXXX 4321", "Verified", "Manual check"],
-            ["సరోజ", "XXXX XXXX 9088", "Pending", "Masked Aadhaar upload"]
-          ].map(([name, masked, status, source]) => (
-            <div key={name} className="rounded-[8px] bg-white p-3 ring-1 ring-slate-100">
-              <div className="flex items-center justify-between gap-2">
-                <p className="font-black text-slate-950">{name}</p>
-                <FileCheck2 size={18} className={status === "Verified" ? "text-leaf-700" : "text-marigold-500"} />
-              </div>
-              <p className="mt-2 text-sm font-bold text-slate-600">{masked}</p>
-              <p className="text-xs font-semibold text-slate-500">{status} · {source}</p>
-            </div>
-          ))}
-        </div>
-      </Card>
     </div>
   );
 }
