@@ -11,7 +11,7 @@ export function AgreementGeneration() {
   
   const [borrowerId, setBorrowerId] = useState("");
   const [loanId, setLoanId] = useState("");
-  const [language, setLanguage] = useState("Telugu");
+  const [language, setLanguage] = useState("te");
   const [witnessName, setWitnessName] = useState("");
   
   const [borrowerSignFile, setBorrowerSignFile] = useState(null);
@@ -104,8 +104,8 @@ export function AgreementGeneration() {
 
             <Field label="Language">
               <SelectInput value={language} onChange={e => setLanguage(e.target.value)}>
-                <option value="Telugu">Telugu</option>
-                <option value="English">English</option>
+                <option value="te">Telugu</option>
+                <option value="en">English</option>
               </SelectInput>
             </Field>
             
@@ -140,17 +140,17 @@ export function AgreementGeneration() {
         {selectedBorrower && selectedLoan && (
           <div className="p-8 border-2 border-slate-900 rounded-lg">
             <h1 className="text-3xl font-black text-center mb-8 uppercase">
-              {language === "Telugu" ? "రుణ ఒప్పంద పత్రం" : "LOAN AGREEMENT"}
+              {language === "te" ? "రుణ ఒప్పంద పత్రం" : "LOAN AGREEMENT"}
             </h1>
             
             <p className="mb-4 text-lg leading-relaxed">
-              {language === "Telugu" 
+              {language === "te" 
                 ? `ఈ రోజు ${new Date().toLocaleDateString('te-IN')} న, అప్పుదారుడైన ${selectedBorrower.name} (${selectedBorrower.village} గ్రామం, తండ్రి: ${selectedBorrower.fatherName}), అప్పు ఇచ్చేవారి వద్ద నుండి రూ. ${selectedLoan.principal}/- (వడ్డీ రేటు: ${selectedLoan.interestRate}%, పద్ధతి: ${selectedLoan.interestType}) రుణంగా తీసుకున్నానని అంగీకరిస్తున్నాను.`
                 : `This agreement is made on ${new Date().toLocaleDateString()} between the Borrower ${selectedBorrower.name} (from ${selectedBorrower.village}, D/o or S/o: ${selectedBorrower.fatherName}) and the Lender. The Borrower acknowledges receiving a loan of ₹${selectedLoan.principal}/- at an interest rate of ${selectedLoan.interestRate}% (${selectedLoan.interestType}).`}
             </p>
 
             <p className="mb-8 text-lg leading-relaxed">
-              {language === "Telugu"
+              {language === "te"
                 ? `ఈ రుణాన్ని గడువు తేదీ (${selectedLoan.dueDate || "N/A"}) లోగా తిరిగి చెల్లించడానికి నేను బాధ్యుడిని. సాక్షి ${witnessName || "________"} సమక్షంలో ఈ ఒప్పందం కుదుర్చుకున్నాము.`
                 : `The Borrower agrees to repay this loan by the due date (${selectedLoan.dueDate || "N/A"}). This agreement is witnessed by ${witnessName || "________"}.`}
             </p>
@@ -164,7 +164,7 @@ export function AgreementGeneration() {
                     <span className="text-slate-400 italic">Signature digitally attached</span>
                   )}
                 </div>
-                <p className="font-bold">{language === "Telugu" ? "అప్పుదారు సంతకం" : "Borrower Signature"}</p>
+                <p className="font-bold">{language === "te" ? "అప్పుదారు సంతకం" : "Borrower Signature"}</p>
                 <p className="text-sm">{selectedBorrower.name}</p>
               </div>
               
@@ -176,14 +176,14 @@ export function AgreementGeneration() {
                     <span className="text-slate-400 italic">Signature digitally attached</span>
                   )}
                 </div>
-                <p className="font-bold">{language === "Telugu" ? "లెంట్దారు సంతకం" : "Lender Signature"}</p>
+                <p className="font-bold">{language === "te" ? "లెంట్దారు సంతకం" : "Lender Signature"}</p>
               </div>
             </div>
             
             {witnessName && (
                <div className="mt-12 text-left w-1/2">
                 <div className="h-16 border-b-2 border-slate-300 mb-2"></div>
-                <p className="font-bold">{language === "Telugu" ? "సాక్షి సంతకం" : "Witness Signature"}</p>
+                <p className="font-bold">{language === "te" ? "సాక్షి సంతకం" : "Witness Signature"}</p>
                 <p className="text-sm">{witnessName}</p>
                </div>
             )}
