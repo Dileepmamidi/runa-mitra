@@ -37,6 +37,7 @@ import { BorrowerPaymentHistory } from "./pages/borrower/BorrowerPaymentHistory"
 import { BorrowerDocuments } from "./pages/borrower/BorrowerDocuments";
 import { BorrowerExtensionRequest } from "./pages/borrower/BorrowerExtensionRequest";
 import { BorrowerNotifications } from "./pages/borrower/BorrowerNotifications";
+import { BorrowerMakePayment } from "./pages/borrower/BorrowerMakePayment";
 
 // Public Pages
 import { LanguageSelection } from "./pages/LanguageSelection";
@@ -101,6 +102,7 @@ export default function App() {
             <Route path="/home" element={<BorrowerHome />} />
             <Route path="/loans/:id" element={<BorrowerLoanDetails />} />
             <Route path="/payments" element={<BorrowerPaymentHistory />} />
+            <Route path="/payments/new" element={<BorrowerMakePayment />} />
             <Route path="/documents" element={<BorrowerDocuments />} />
             <Route path="/extensions/new" element={<BorrowerExtensionRequest />} />
             <Route path="/notifications" element={<BorrowerNotifications />} />

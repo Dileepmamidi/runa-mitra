@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useLocation } from "react-router-dom";
-import { Bell, Home, FileText, Activity } from "lucide-react";
+import { Bell, Home, FileText, Activity, LogOut } from "lucide-react";
 import { useApp } from "../context/AppContext";
 
 const navItems = [
@@ -10,7 +10,7 @@ const navItems = [
 ];
 
 export function BorrowerFrame() {
-  const { borrowerLink, borrowers } = useApp();
+  const { borrowerLink, borrowers, logout } = useApp();
   const location = useLocation();
   const showChrome = !["/", "/language", "/login"].includes(location.pathname);
 
@@ -27,6 +27,9 @@ export function BorrowerFrame() {
             <p className="text-xs font-bold text-leaf-700">Runa Mitra (Borrower)</p>
             <h1 className="text-lg font-black text-slate-950">నమస్కారం, {myProfile.name}</h1>
           </div>
+          <button onClick={logout} className="flex h-10 items-center justify-center rounded-lg bg-slate-100 px-3 text-sm font-bold text-slate-600 hover:bg-slate-200">
+            <LogOut size={16} className="mr-2" /> Log out
+          </button>
         </div>
       </header>
       
