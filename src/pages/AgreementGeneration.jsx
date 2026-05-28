@@ -16,6 +16,7 @@ export function AgreementGeneration() {
   
   const [borrowerSignFile, setBorrowerSignFile] = useState(null);
   const [lenderSignFile, setLenderSignFile] = useState(null);
+  const [witnessSignFile, setWitnessSignFile] = useState(null);
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -48,6 +49,11 @@ export function AgreementGeneration() {
         lenderSignUrl = await uploadEvidence(user.uid, lenderSignFile, ["agreements", loanId, "lender"]);
       }
 
+      let witnessSignUrl = "";
+      if (witnessSignFile) {
+        witnessSignUrl = await uploadEvidence(user.uid, witnessSignFile, ["agreements", loanId, "witness"]);
+      }
+
       const agreementData = {
         borrowerId,
         loanId,
@@ -55,6 +61,7 @@ export function AgreementGeneration() {
         witnessName,
         borrowerSignUrl,
         lenderSignUrl,
+        witnessSignUrl,
         generatedAt: new Date().toISOString(),
       };
 
@@ -120,6 +127,10 @@ export function AgreementGeneration() {
             <Field label="Lender signature (Camera)">
               <TextInput type="file" accept="image/*" capture="environment" onChange={e => setLenderSignFile(e.target.files[0])} />
             </Field>
+
+            <Field label="Witness signature (Camera)">
+              <TextInput type="file" accept="image/*" capture="environment" onChange={e => setWitnessSignFile(e.target.files[0])} />
+            </Field>
           </div>
           
           <div className="mt-5 rounded-[8px] bg-soil-50 p-4">
@@ -182,7 +193,13 @@ export function AgreementGeneration() {
             
             {witnessName && (
                <div className="mt-12 text-left w-1/2">
-                <div className="h-16 border-b-2 border-slate-300 mb-2"></div>
+                <div className="h-24 flex items-end justify-start border-b-2 border-slate-300 mb-2 pb-2">
+                  {witnessSignFile ? (
+                    <img src={URL.createObjectURL(witnessSignFile)} alt="Witness Signature" className="max-h-20 object-contain" />
+                  ) : (
+                    <span className="text-slate-400 italic">Signature digitally attached</span>
+                  )}
+                </div>
                 <p className="font-bold">{language === "te" ? "సాక్షి సంతకం" : "Witness Signature"}</p>
                 <p className="text-sm">{witnessName}</p>
                </div>
