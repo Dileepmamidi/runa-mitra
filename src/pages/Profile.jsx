@@ -28,13 +28,18 @@ export function Profile() {
     <div className="mx-auto max-w-2xl md:ml-56">
       <Card>
         <div className="flex items-center gap-4">
-          <div className="flex h-20 w-20 items-center justify-center rounded-full bg-leaf-100 text-2xl font-black text-leaf-700">
-            {initials}
+          <div className="flex h-20 w-20 shrink-0 overflow-hidden items-center justify-center rounded-full bg-leaf-100 text-2xl font-black text-leaf-700">
+            {lender.photoUrl ? (
+              <img src={lender.photoUrl} alt="Profile" className="h-full w-full object-cover" />
+            ) : initials}
           </div>
-          <div>
+          <div className="flex-1">
             <h1 className="text-2xl font-black">{lender.name || user?.phoneNumber || "Lender"}</h1>
             <p className="font-semibold text-slate-500">{lender.village} · {lender.businessType}</p>
           </div>
+          <Link to="/profile-setup" className="rounded-full bg-slate-100 p-2 text-slate-600 hover:bg-slate-200">
+            <Settings size={20} />
+          </Link>
         </div>
       </Card>
 

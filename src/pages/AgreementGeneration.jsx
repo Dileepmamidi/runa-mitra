@@ -158,7 +158,11 @@ export function AgreementGeneration() {
             <div className="mt-16 grid grid-cols-2 gap-8 pt-8">
               <div className="text-center">
                 <div className="h-24 flex items-end justify-center border-b-2 border-slate-300 mb-2 pb-2">
-                  {borrowerSignFile && <span className="text-slate-400 italic">Signature digitally attached</span>}
+                  {borrowerSignFile ? (
+                    <img src={URL.createObjectURL(borrowerSignFile)} alt="Borrower Signature" className="max-h-20 object-contain" />
+                  ) : (
+                    <span className="text-slate-400 italic">Signature digitally attached</span>
+                  )}
                 </div>
                 <p className="font-bold">{language === "Telugu" ? "అప్పుదారు సంతకం" : "Borrower Signature"}</p>
                 <p className="text-sm">{selectedBorrower.name}</p>
@@ -166,7 +170,11 @@ export function AgreementGeneration() {
               
               <div className="text-center">
                 <div className="h-24 flex items-end justify-center border-b-2 border-slate-300 mb-2 pb-2">
-                  {lenderSignFile && <span className="text-slate-400 italic">Signature digitally attached</span>}
+                  {lenderSignFile ? (
+                    <img src={URL.createObjectURL(lenderSignFile)} alt="Lender Signature" className="max-h-20 object-contain" />
+                  ) : (
+                    <span className="text-slate-400 italic">Signature digitally attached</span>
+                  )}
                 </div>
                 <p className="font-bold">{language === "Telugu" ? "లెంట్దారు సంతకం" : "Lender Signature"}</p>
               </div>
