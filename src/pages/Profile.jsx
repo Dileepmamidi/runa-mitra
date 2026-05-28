@@ -4,7 +4,7 @@ import { Card } from "../components/Card";
 import { useApp } from "../context/AppContext";
 
 export function Profile() {
-  const { lender, logout, user } = useApp();
+  const { lender, logout, user, availableRoles, switchRole } = useApp();
 
   const links = [
     ["/calculator", "Interest Calculator", Calculator],
@@ -60,6 +60,16 @@ export function Profile() {
         <Link to="/family-access" className="flex min-h-14 items-center gap-3 rounded-[8px] bg-white p-4 font-bold text-slate-800 shadow-soft">
           Family Access
         </Link>
+
+        {availableRoles.includes("borrower") && (
+          <button
+            onClick={() => switchRole("borrower")}
+            className="flex min-h-14 w-full items-center justify-center gap-3 rounded-[8px] bg-slate-900 p-4 font-bold text-white shadow-soft hover:bg-slate-800"
+          >
+            <UsersRound size={19} />
+            Switch to Borrower App
+          </button>
+        )}
 
         {/* Logout Button */}
         <button

@@ -21,6 +21,7 @@ export function AppProvider({ children }) {
   
   // Roles: "lender", "borrower", or null
   const [userRole, setUserRole] = useState(null);
+  const [availableRoles, setAvailableRoles] = useState([]);
   const [borrowerLink, setBorrowerLink] = useState(null); // { lenderUid, borrowerId }
 
   const [lender, setLender] = useState(defaultLender);
@@ -88,34 +89,43 @@ export function AppProvider({ children }) {
       setUser(firebaseUser);
       if (firebaseUser) {
         try {
-          // 1. Check if user is a Lender
+          // Check both profiles
           const profile = await getUserProfile(firebaseUser.uid);
+          const link = await checkBorrowerLink(firebaseUser.phoneNumber);
           
+          const roles = [];
+          if (profile?.profile) roles.push("lender");
+          if (link) roles.push("borrower");
+          
+          setAvailableRoles(roles);
+
           if (profile?.profile) {
-            // User is a Lender
-            setUserRole("lender");
             setLender({ ...defaultLender, ...profile.profile });
             if (profile.profile.preferredLanguage) setLanguage(profile.profile.preferredLanguage);
             if (profile.profile.appMode) setAppMode(profile.profile.appMode);
+          }
+          if (link) {
+            setBorrowerLink(link);
+          }
+
+          // Decide initial active role
+          if (roles.includes("lender")) {
+            setUserRole("lender");
             await loadLenderData(firebaseUser.uid);
+          } else if (roles.includes("borrower")) {
+            setUserRole("borrower");
+            await loadBorrowerData(link);
           } else {
-            // 2. Not a lender. Check if they are a Borrower via borrowerLinks
-            const link = await checkBorrowerLink(firebaseUser.phoneNumber);
-            if (link) {
-              setUserRole("borrower");
-              setBorrowerLink(link);
-              await loadBorrowerData(link);
-            } else {
-              // New user with no profile and no link. Default to Lender creation path.
-              setUserRole("lender");
-              await loadLenderData(firebaseUser.uid);
-            }
+            // New user with no profile and no link. Default to Lender creation path.
+            setUserRole("lender");
+            await loadLenderData(firebaseUser.uid);
           }
         } catch (error) {
           console.error("Auth routing error:", error);
         }
       } else {
         setUserRole(null);
+        setAvailableRoles([]);
         setBorrowerLink(null);
         setLender(defaultLender);
         setBorrowers([]);
@@ -142,6 +152,13 @@ export function AppProvider({ children }) {
     if (userRole === "borrower" && borrowerLink) await loadBorrowerData(borrowerLink);
   };
 
+  const switchRole = async (newRole) => {
+    if (!user) return;
+    setUserRole(newRole);
+    if (newRole === "lender") await loadLenderData(user.uid);
+    if (newRole === "borrower" && borrowerLink) await loadBorrowerData(borrowerLink);
+  };
+
   const value = useMemo(
     () => ({
       language,
@@ -158,6 +175,7 @@ export function AppProvider({ children }) {
       lender: { ...lender, mode: appMode },
       user,
       userRole,
+      availableRoles,
       borrowerLink,
       authLoading,
       logout,
@@ -168,9 +186,10 @@ export function AppProvider({ children }) {
       reminders,
       agreements,
       evidence,
-      refreshData
+      refreshData,
+      switchRole
     }),
-    [appMode, language, user, userRole, borrowerLink, lender, authLoading, borrowers, loans, payments, reminders, agreements, evidence]
+    [appMode, language, user, userRole, availableRoles, borrowerLink, lender, authLoading, borrowers, loans, payments, reminders, agreements, evidence]
   );
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
