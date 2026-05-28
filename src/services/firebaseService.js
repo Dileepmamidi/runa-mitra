@@ -62,3 +62,22 @@ export async function getUserProfile(uid) {
   const snap = await getDoc(doc(db, "users", uid));
   return snap.exists() ? snap.data() : null;
 }
+
+export async function checkBorrowerLink(phoneNumber) {
+  if (!phoneNumber) return null;
+  // Convert standard local numbers to +91 if needed, assuming the auth token has +91
+  // We'll search by the exact phone number that the user logged in with.
+  const snap = await getDoc(doc(db, "borrowerLinks", phoneNumber));
+  return snap.exists() ? snap.data() : null;
+}
+
+export async function createBorrowerLink(phoneNumber, lenderUid, borrowerId) {
+  if (!phoneNumber) return;
+  // Always ensure E.164 format for the ID if it's an Indian number
+  const formattedPhone = phoneNumber.startsWith("+") ? phoneNumber : `+91${phoneNumber}`;
+  return setDoc(
+    doc(db, "borrowerLinks", formattedPhone),
+    { lenderUid, borrowerId, updatedAt: serverTimestamp() },
+    { merge: true }
+  );
+}

@@ -1,4 +1,4 @@
-import { Navigate } from "react-router-dom";
+import { Navigate, Outlet } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 
 export function AuthGuard({ children }) {
@@ -19,5 +19,5 @@ export function AuthGuard({ children }) {
     return <Navigate to="/login" replace />;
   }
 
-  return children;
+  return children ? children : <Outlet />;
 }

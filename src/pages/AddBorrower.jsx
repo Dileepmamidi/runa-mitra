@@ -4,7 +4,7 @@ import { ActionButton } from "../components/ActionButton";
 import { Card } from "../components/Card";
 import { Field, SelectInput, TextArea, TextInput } from "../components/FormControls";
 import { useApp } from "../context/AppContext";
-import { addUserRecord, uploadEvidence } from "../services/firebaseService";
+import { addUserRecord, uploadEvidence, createBorrowerLink } from "../services/firebaseService";
 
 export function AddBorrower() {
   const { user, refreshData } = useApp();
@@ -63,7 +63,10 @@ export function AddBorrower() {
         createdAt: new Date() // Firestore timestamp will be created server-side, but this sets a local timestamp initially
       };
 
-      await addUserRecord(user.uid, "borrowers", borrowerData);
+      const docRef = await addUserRecord(user.uid, "borrowers", borrowerData);
+      
+      // 2b. Create borrower link for role-based login
+      await createBorrowerLink(formData.mobile, user.uid, docRef.id);
       
       // 3. Refresh context and navigate
       await refreshData();
