@@ -160,6 +160,14 @@ export function AppProvider({ children }) {
 
   const switchRole = async (newRole) => {
     if (!user) return;
+    // Clear stale data immediately before loading new role's data
+    setBorrowers([]);
+    setLoans([]);
+    setPayments([]);
+    setReminders([]);
+    setAgreements([]);
+    setEvidence([]);
+    setMessages([]);
     setUserRole(newRole);
     if (newRole === "lender") await loadLenderData(user.uid);
     if (newRole === "borrower" && borrowerLink) await loadBorrowerData(borrowerLink);

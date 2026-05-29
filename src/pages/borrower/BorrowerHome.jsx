@@ -3,9 +3,14 @@ import { ArrowRight, Clock, FileText, AlertCircle } from "lucide-react";
 import { useApp } from "../../context/AppContext";
 import { currency } from "../../utils/loanMath";
 import { Card } from "../../components/Card";
+import { useEffect } from "react";
 
 export function BorrowerHome() {
-  const { loans, payments } = useApp();
+  const { loans, payments, refreshData } = useApp();
+
+  useEffect(() => {
+    refreshData();
+  }, []);
 
   const totalPrincipal = loans.reduce((sum, loan) => sum + Number(loan.principal || 0), 0);
   const totalBalance = loans.reduce((sum, loan) => sum + Number(loan.balance || 0), 0);
