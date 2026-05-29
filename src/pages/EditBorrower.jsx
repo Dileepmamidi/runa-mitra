@@ -4,7 +4,7 @@ import { ActionButton } from "../components/ActionButton";
 import { Card } from "../components/Card";
 import { Field, SelectInput, TextArea, TextInput } from "../components/FormControls";
 import { useApp } from "../context/AppContext";
-import { updateUserRecord, uploadEvidence, deleteUserRecord } from "../services/firebaseService";
+import { updateUserRecord, uploadEvidence, deleteUserRecord, createBorrowerLink } from "../services/firebaseService";
 
 export function EditBorrower() {
   const { id } = useParams();
@@ -78,8 +78,10 @@ export function EditBorrower() {
       // 2. Update borrower data
       await updateUserRecord(user.uid, "borrowers", id, updates);
       
-      // Note: We don't update the borrowerLink here because they log in using their mobile number.
-      // If the mobile number changes, it's a more complex migration. We assume for now they just update info.
+      // Note: We sync the link here to heal any broken multi-lender links automatically.
+      if (formData.mobile) {
+        await createBorrowerLink(formData.mobile, user.uid, id);
+      }
 
       await refreshData();
       navigate(`/borrowers/${id}`);

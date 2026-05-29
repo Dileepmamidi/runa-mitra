@@ -5,12 +5,11 @@ import { useApp } from "../context/AppContext";
 import { createBorrowerLink } from "../services/firebaseService";
 
 export function Settings() {
-  const { user, appMode, setAppMode, borrowers } = useApp();
+  const { user, appMode, setAppMode, borrowers, language, setLanguage } = useApp();
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState("");
 
   const items = [
-    ["Language", Languages],
     ["Notifications", Bell],
     ["Dark mode", Moon],
     ["PIN lock", LockKeyhole],
@@ -47,6 +46,14 @@ export function Settings() {
           {["Simple", "Regular", "Advanced"].map((mode) => (
             <button key={mode} onClick={() => setAppMode(mode)} className={`min-h-11 rounded-[8px] text-sm font-black ${appMode === mode ? "bg-leaf-600 text-white" : "bg-slate-50 text-slate-700"}`}>{mode}</button>
           ))}
+        </div>
+      </Card>
+      
+      <Card className="mt-4">
+        <p className="mb-3 text-sm font-bold text-slate-500">Language (భాష)</p>
+        <div className="grid grid-cols-2 gap-2">
+          <button onClick={() => setLanguage("en")} className={`min-h-11 rounded-[8px] text-sm font-black ${language === "en" ? "bg-leaf-600 text-white" : "bg-slate-50 text-slate-700"}`}>English</button>
+          <button onClick={() => setLanguage("te")} className={`min-h-11 rounded-[8px] text-sm font-black ${language === "te" ? "bg-leaf-600 text-white" : "bg-slate-50 text-slate-700"}`}>తెలుగు</button>
         </div>
       </Card>
 

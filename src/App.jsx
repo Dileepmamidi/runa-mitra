@@ -7,6 +7,7 @@ import { useApp } from "./context/AppContext";
 // Lender Pages
 import { AddBorrower } from "./pages/AddBorrower";
 import { AddLoan } from "./pages/AddLoan";
+import { EditLoan } from "./pages/EditLoan";
 import { AgreementGeneration } from "./pages/AgreementGeneration";
 import { AadhaarVerification } from "./pages/AadhaarVerification";
 import { Analytics } from "./pages/Analytics";
@@ -80,6 +81,7 @@ export default function App() {
             <Route path="/borrowers/:id" element={<BorrowerProfile />} />
             <Route path="/loans/new" element={<AddLoan />} />
             <Route path="/loans/:id" element={<LoanDetails />} />
+            <Route path="/loans/edit/:id" element={<EditLoan />} />
             <Route path="/payments/new" element={<PaymentEntry />} />
             <Route path="/extensions/new" element={<RepaymentExtension />} />
             <Route path="/calculator" element={<InterestCalculator />} />

@@ -6,7 +6,7 @@ import { Card } from "../../components/Card";
 import { useEffect } from "react";
 
 export function BorrowerHome() {
-  const { loans, payments, refreshData } = useApp();
+  const { loans, payments, refreshData, language, setLanguage } = useApp();
 
   useEffect(() => {
     refreshData();
@@ -20,7 +20,17 @@ export function BorrowerHome() {
 
   return (
     <div className="mx-auto max-w-2xl">
-      <h2 className="text-3xl font-black text-slate-950 mb-6">సారాంశం (Overview)</h2>
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-3xl font-black text-slate-950">సారాంశం (Overview)</h2>
+        <select 
+          className="bg-slate-100 text-slate-700 font-bold rounded-lg px-3 py-2 text-sm border-0 focus:ring-2 focus:ring-leaf-500"
+          value={language} 
+          onChange={(e) => setLanguage(e.target.value)}
+        >
+          <option value="te">తెలుగు</option>
+          <option value="en">English</option>
+        </select>
+      </div>
       
       <div className="grid gap-4 md:grid-cols-2 mb-6">
         <Card className="bg-danger-50 border-danger-100">

@@ -99,14 +99,21 @@ export function HomeDashboard() {
           </p>
         ) : (
           <div className="grid gap-3">
-            {borrowers.map((borrower) => (
+            {borrowers
+              .map(borrower => {
+                const borrowerLoans = loans.filter(l => l.borrowerId === borrower.id);
+                const totalBalance = borrowerLoans.reduce((sum, l) => sum + l.balance, 0);
+                return { ...borrower, totalBalance };
+              })
+              .filter(b => b.totalBalance > 0)
+              .map((borrower) => (
               <div key={borrower.id} className="flex items-center justify-between gap-3 rounded-[8px] bg-slate-50 p-3">
                 <div>
                   <p className="font-black text-slate-950">{borrower.personalInfo?.name || borrower.name}</p>
                   <p className="text-sm font-semibold text-slate-500">{borrower.dueDate || "—"}</p>
                 </div>
                 <div className="text-right">
-                  <p className="font-black text-slate-950">{currency(borrower.pendingAmount || 0)}</p>
+                  <p className="font-black text-slate-950">{currency(borrower.totalBalance)}</p>
                   <StatusBadge status={borrower.status || "active"} />
                 </div>
               </div>

@@ -6,6 +6,7 @@ import { Field, SelectInput, TextInput } from "../components/FormControls";
 import { currency } from "../utils/loanMath";
 import { useApp } from "../context/AppContext";
 import { addUserRecord, updateUserRecord } from "../services/firebaseService";
+import { generateReceipt } from "../utils/receiptGenerator";
 
 export function PaymentEntry() {
   const { user, borrowers, loans, refreshData } = useApp();
@@ -60,36 +61,13 @@ export function PaymentEntry() {
 
   const handlePrintReceipt = () => {
     if (!selectedBorrower || !selectedLoan || !amount) return;
-    const printWindow = window.open("", "_blank");
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>Payment Receipt</title>
-          <style>
-            body { font-family: sans-serif; padding: 20px; }
-            .receipt { border: 2px dashed #ccc; padding: 20px; max-width: 400px; margin: 0 auto; }
-            .header { text-align: center; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 20px; }
-            .row { display: flex; justify-content: space-between; margin-bottom: 10px; }
-            .total { font-size: 24px; font-weight: bold; text-align: center; margin-top: 20px; color: #166534; }
-          </style>
-        </head>
-        <body>
-          <div class="receipt">
-            <div class="header">
-              <h2>Runa Mitra Receipt</h2>
-              <p>Date: ${paymentDate}</p>
-            </div>
-            <div class="row"><span>Borrower:</span> <strong>${selectedBorrower.name}</strong></div>
-            <div class="row"><span>Loan Principal:</span> <strong>₹${selectedLoan.principal}</strong></div>
-            <div class="row"><span>Method:</span> <strong>${method}</strong></div>
-            <div class="total">Amount Paid: ₹${amount}</div>
-            <p style="text-align: center; margin-top: 30px; font-size: 12px; color: #666;">Thank you for your payment!</p>
-          </div>
-          <script>window.print();</script>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
+    generateReceipt({
+      paymentDate,
+      borrowerName: selectedBorrower.name,
+      principal: selectedLoan.principal,
+      amountPaid: amount,
+      method
+    });
   };
 
   return (
