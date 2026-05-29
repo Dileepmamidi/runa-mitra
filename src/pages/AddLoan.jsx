@@ -138,7 +138,7 @@ export function AddLoan() {
             </Field>
             <Field label="Loan amount"><TextInput type="number" value={principal} onChange={(e) => setPrincipal(Number(e.target.value))} /></Field>
             <Field label="Loan date"><TextInput type="date" value={loanDate} onChange={(e) => setLoanDate(e.target.value)} /></Field>
-            <Field label="Interest rate %"><TextInput type="number" value={rate} onChange={(e) => setRate(Number(e.target.value))} /></Field>
+            <Field label="Interest rate (% per month)"><TextInput type="number" value={rate} onChange={(e) => setRate(Number(e.target.value))} /></Field>
             <Field label="Interest type">
               <SelectInput value={interestType} onChange={(e) => setInterestType(e.target.value)}><option>Simple</option><option>Compound</option></SelectInput>
             </Field>

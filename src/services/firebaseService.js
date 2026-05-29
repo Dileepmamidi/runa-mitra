@@ -10,7 +10,8 @@ import {
   serverTimestamp,
   setDoc,
   updateDoc,
-  where
+  where,
+  arrayUnion
 } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { db, storage } from "../config/firebase";
@@ -82,7 +83,10 @@ export async function createBorrowerLink(phoneNumber, lenderUid, borrowerId) {
   const formattedPhone = phoneNumber.startsWith("+") ? phoneNumber : `+91${phoneNumber}`;
   return setDoc(
     doc(db, "borrowerLinks", formattedPhone),
-    { lenderUid, borrowerId, updatedAt: serverTimestamp() },
+    { 
+      lenders: arrayUnion({ lenderUid, borrowerId }), 
+      updatedAt: serverTimestamp() 
+    },
     { merge: true }
   );
 }

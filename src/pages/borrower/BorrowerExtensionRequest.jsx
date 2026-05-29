@@ -24,6 +24,7 @@ export function BorrowerExtensionRequest() {
   const [success, setSuccess] = useState("");
 
   const activeLoans = loans.filter(l => l.balance > 0);
+  const selectedLoan = loans.find(l => l.id === loanId);
 
   const handleSubmit = async () => {
     setError("");
@@ -37,11 +38,11 @@ export function BorrowerExtensionRequest() {
       
       if (voiceFile) {
         // Here we upload to the lender's storage bucket since the link contains lenderUid
-        voiceUrl = await uploadEvidence(borrowerLink.lenderUid, voiceFile, ["extensions", borrowerLink.borrowerId]);
+        voiceUrl = await uploadEvidence(selectedLoan.lenderUid, voiceFile, ["extensions", selectedLoan._borrowerId]);
       }
       
       const requestData = {
-        borrowerId: borrowerLink.borrowerId,
+        borrowerId: selectedLoan._borrowerId,
         loanId,
         reason,
         requestedDays: Number(requestedDays),
@@ -50,8 +51,8 @@ export function BorrowerExtensionRequest() {
         requestedAt: new Date()
       };
 
-      // Save to lender's extensionRequests collection
-      await addUserRecord(borrowerLink.lenderUid, "extensionRequests", requestData);
+      // Save to lender's messages collection
+      await addUserRecord(selectedLoan.lenderUid, "messages", { ...requestData, type: "extension_request" });
       
       setSuccess("మీ అభ్యర్థన పంపబడింది! (Request sent successfully!)");
       setTimeout(() => navigate("/home"), 2000);

@@ -40,11 +40,11 @@ export function BorrowerMakePayment() {
       let screenshotUrl = "";
       
       if (screenshotFile) {
-        screenshotUrl = await uploadEvidence(borrowerLink.lenderUid, screenshotFile, ["payments", borrowerLink.borrowerId]);
+        screenshotUrl = await uploadEvidence(selectedLoan.lenderUid, screenshotFile, ["payments", selectedLoan._borrowerId]);
       }
       
       const paymentData = {
-        borrowerId: borrowerLink.borrowerId,
+        borrowerId: selectedLoan._borrowerId,
         loanId,
         amount: Number(amount),
         method: paymentMethod,
@@ -57,7 +57,7 @@ export function BorrowerMakePayment() {
       };
 
       // Save to lender's payments collection
-      await addUserRecord(borrowerLink.lenderUid, "payments", paymentData);
+      await addUserRecord(selectedLoan.lenderUid, "payments", paymentData);
       
       // We do NOT instantly deduct the balance here. 
       // The lender must verify and approve it on their dashboard first.

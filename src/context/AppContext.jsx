@@ -59,30 +59,52 @@ export function AppProvider({ children }) {
     }
   }, []);
 
-  const loadBorrowerData = useCallback(async (link) => {
-    const lenderUid = link.lenderUid;
-    const myBorrowerId = link.borrowerId;
-    if (!lenderUid || !myBorrowerId) return;
+  const loadBorrowerData = useCallback(async (links) => {
+    if (!Array.isArray(links) || links.length === 0) return;
 
     const safe = async (fn) => { try { return await fn(); } catch { return []; } };
 
-    const [b, l, p, r, a, e, m] = await Promise.all([
-      safe(() => listUserCollection(lenderUid, "borrowers")),
-      safe(() => listUserCollection(lenderUid, "loans", [where("borrowerId", "==", myBorrowerId)])),
-      safe(() => listUserCollection(lenderUid, "payments", [where("borrowerId", "==", myBorrowerId)])),
-      safe(() => listUserCollection(lenderUid, "reminders", [where("borrowerId", "==", myBorrowerId)])),
-      safe(() => listUserCollection(lenderUid, "agreements", [where("borrowerId", "==", myBorrowerId)])),
-      safe(() => listUserCollection(lenderUid, "evidence", [where("borrowerId", "==", myBorrowerId)])),
-      safe(() => listUserCollection(lenderUid, "messages", [where("borrowerId", "==", myBorrowerId)])),
-    ]);
+    let allBorrowers = [];
+    let allLoans = [];
+    let allPayments = [];
+    let allReminders = [];
+    let allAgreements = [];
+    let allEvidence = [];
+    let allMessages = [];
 
-    setBorrowers(b.filter(x => x.id === myBorrowerId));
-    setLoans(l);
-    setPayments(p);
-    setReminders(r);
-    setAgreements(a);
-    setEvidence(e);
-    setMessages(m);
+    for (const link of links) {
+      const lenderUid = link.lenderUid;
+      const myBorrowerId = link.borrowerId;
+      if (!lenderUid || !myBorrowerId) continue;
+
+      const [b, l, p, r, a, e, m] = await Promise.all([
+        safe(() => listUserCollection(lenderUid, "borrowers")),
+        safe(() => listUserCollection(lenderUid, "loans", [where("borrowerId", "==", myBorrowerId)])),
+        safe(() => listUserCollection(lenderUid, "payments", [where("borrowerId", "==", myBorrowerId)])),
+        safe(() => listUserCollection(lenderUid, "reminders", [where("borrowerId", "==", myBorrowerId)])),
+        safe(() => listUserCollection(lenderUid, "agreements", [where("borrowerId", "==", myBorrowerId)])),
+        safe(() => listUserCollection(lenderUid, "evidence", [where("borrowerId", "==", myBorrowerId)])),
+        safe(() => listUserCollection(lenderUid, "messages", [where("borrowerId", "==", myBorrowerId)])),
+      ]);
+
+      const injectLender = (arr) => arr.map(doc => ({ ...doc, lenderUid, _borrowerId: myBorrowerId }));
+      
+      allBorrowers.push(...b.filter(x => x.id === myBorrowerId).map(doc => ({...doc, lenderUid, _borrowerId: myBorrowerId})));
+      allLoans.push(...injectLender(l));
+      allPayments.push(...injectLender(p));
+      allReminders.push(...injectLender(r));
+      allAgreements.push(...injectLender(a));
+      allEvidence.push(...injectLender(e));
+      allMessages.push(...injectLender(m));
+    }
+
+    setBorrowers(allBorrowers);
+    setLoans(allLoans);
+    setPayments(allPayments);
+    setReminders(allReminders);
+    setAgreements(allAgreements);
+    setEvidence(allEvidence);
+    setMessages(allMessages);
   }, []);
 
   // Listen to Firebase Auth state
@@ -93,11 +115,15 @@ export function AppProvider({ children }) {
         try {
           // Check both profiles
           const profile = await getUserProfile(firebaseUser.uid);
-          const link = await checkBorrowerLink(firebaseUser.phoneNumber);
+          const linkData = await checkBorrowerLink(firebaseUser.phoneNumber);
           
+          let linksArray = [];
+          if (linkData?.lenders) linksArray = linkData.lenders;
+          else if (linkData?.lenderUid) linksArray = [{ lenderUid: linkData.lenderUid, borrowerId: linkData.borrowerId }];
+
           const roles = [];
           if (profile?.profile) roles.push("lender");
-          if (link) roles.push("borrower");
+          if (linksArray.length > 0) roles.push("borrower");
           
           setAvailableRoles(roles);
 
@@ -106,8 +132,8 @@ export function AppProvider({ children }) {
             if (profile.profile.preferredLanguage) setLanguage(profile.profile.preferredLanguage);
             if (profile.profile.appMode) setAppMode(profile.profile.appMode);
           }
-          if (link) {
-            setBorrowerLink(link);
+          if (linksArray.length > 0) {
+            setBorrowerLink(linksArray);
           }
 
           // Decide initial active role
@@ -116,7 +142,7 @@ export function AppProvider({ children }) {
             await loadLenderData(firebaseUser.uid);
           } else if (roles.includes("borrower")) {
             setUserRole("borrower");
-            await loadBorrowerData(link);
+            await loadBorrowerData(linksArray);
           } else {
             // New user with no profile and no link. Default to Lender creation path.
             setUserRole("lender");
@@ -152,7 +178,7 @@ export function AppProvider({ children }) {
   const refreshData = async () => {
     if (!user) return;
     if (userRole === "lender") await loadLenderData(user.uid);
-    if (userRole === "borrower" && borrowerLink) await loadBorrowerData(borrowerLink);
+    if (userRole === "borrower" && borrowerLink?.length > 0) await loadBorrowerData(borrowerLink);
   };
 
   const switchRole = async (newRole) => {
@@ -167,7 +193,7 @@ export function AppProvider({ children }) {
     setMessages([]);
     setUserRole(newRole);
     if (newRole === "lender") await loadLenderData(user.uid);
-    if (newRole === "borrower" && borrowerLink) await loadBorrowerData(borrowerLink);
+    if (newRole === "borrower" && borrowerLink?.length > 0) await loadBorrowerData(borrowerLink);
   };
 
   const value = useMemo(

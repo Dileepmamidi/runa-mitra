@@ -13,6 +13,7 @@ export function LenderInbox() {
   const [activeTab, setActiveTab] = useState("approvals");
   const [processing, setProcessing] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [hiddenPayments, setHiddenPayments] = useState(new Set());
 
   // Auto-refresh when tab opens
   useEffect(() => {
@@ -25,7 +26,7 @@ export function LenderInbox() {
     setRefreshing(false);
   };
 
-  const pendingPayments = payments.filter(p => p.status === "pending_verification");
+  const pendingPayments = payments.filter(p => p.status === "pending_verification" && !hiddenPayments.has(p.id));
 
   const handleApprovePayment = async (payment) => {
     if (!user) return;
@@ -42,6 +43,7 @@ export function LenderInbox() {
         await updateUserRecord(user.uid, "loans", loan.id, { balance: newBalance });
       }
       
+      setHiddenPayments(prev => new Set(prev).add(payment.id));
       await refreshData();
     } catch (err) {
       console.error(err);
@@ -58,6 +60,7 @@ export function LenderInbox() {
     try {
       setProcessing(payment.id);
       await updateUserRecord(user.uid, "payments", payment.id, { status: "rejected", rejectedAt: new Date() });
+      setHiddenPayments(prev => new Set(prev).add(payment.id));
       await refreshData();
     } catch (err) {
       console.error(err);

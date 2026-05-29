@@ -1,11 +1,17 @@
-export function calculateSimpleInterest(principal, annualRate, months) {
-  return Math.round(principal + (principal * annualRate * months) / 1200);
+export function calculateSimpleInterest(principal, monthlyRate, months) {
+  // Enforce minimum 1 month interest, even for same-day repayment
+  const effectiveMonths = Math.max(1, months);
+  return Math.round(principal + (principal * monthlyRate * effectiveMonths) / 100);
 }
 
-export function calculateCompoundInterest(principal, annualRate, months, cycle = "monthly") {
+export function calculateCompoundInterest(principal, monthlyRate, months, cycle = "monthly") {
+  const effectiveMonths = Math.max(1, months);
   const periodsPerYear = cycle === "weekly" ? 52 : cycle === "yearly" ? 1 : 12;
-  const periods = Math.max(1, Math.round((months / 12) * periodsPerYear));
-  const amount = principal * Math.pow(1 + annualRate / 100 / periodsPerYear, periods);
+  // Convert monthly rate back to annual for the standard compound formula, or just compound monthly
+  // If cycle is monthly, we can just use the monthly rate directly.
+  const ratePerPeriod = cycle === "monthly" ? monthlyRate / 100 : (monthlyRate * 12) / 100 / periodsPerYear;
+  const periods = Math.round((effectiveMonths / 12) * periodsPerYear);
+  const amount = principal * Math.pow(1 + ratePerPeriod, Math.max(1, periods));
   return Math.round(amount);
 }
 
