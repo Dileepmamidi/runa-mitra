@@ -33,7 +33,7 @@ export function BorrowerMakePayment() {
     setSuccess("");
     if (!loanId) return setError("Please select a loan.");
     if (!amount || Number(amount) <= 0) return setError("Please enter a valid amount.");
-    if (!referenceId && !screenshotFile) return setError("Please provide a UPI reference ID or a screenshot of your payment.");
+    if (!referenceId.trim() && !screenshotFile) return setError("Please provide a UPI reference ID or a screenshot of your payment.");
     
     try {
       setLoading(true);
@@ -67,8 +67,8 @@ export function BorrowerMakePayment() {
       setTimeout(() => navigate("/payments"), 2000);
       
     } catch (err) {
-      console.error(err);
-      setError("Failed to submit payment. Please try again.");
+      console.error("Payment Submission Error:", err);
+      setError(`Error: ${err.message || "Failed to submit payment."}`);
     } finally {
       setLoading(false);
     }
