@@ -4,11 +4,11 @@ import { ActionButton } from "../components/ActionButton";
 import { Card } from "../components/Card";
 import { Field, SelectInput, TextArea, TextInput } from "../components/FormControls";
 import { useApp } from "../context/AppContext";
-import { updateUserRecord, uploadEvidence } from "../services/firebaseService";
+import { updateUserRecord, uploadEvidence, deleteUserRecord } from "../services/firebaseService";
 
 export function EditBorrower() {
   const { id } = useParams();
-  const { user, borrowers, refreshData } = useApp();
+  const { user, borrowers, loans, refreshData } = useApp();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -91,6 +91,32 @@ export function EditBorrower() {
     }
   };
 
+  const handleDelete = async () => {
+    if (!user) return;
+    
+    // Check if borrower has active loans
+    const borrowerLoans = loans.filter(l => l.borrowerId === id);
+    const activeBalance = borrowerLoans.reduce((sum, l) => sum + l.balance, 0);
+    
+    if (activeBalance > 0) {
+      alert(`Cannot delete! This borrower still owes ${activeBalance}. Please clear their loans first.`);
+      return;
+    }
+    
+    if (!window.confirm("Are you sure you want to completely delete this borrower? This cannot be undone.")) return;
+    
+    try {
+      setLoading(true);
+      await deleteUserRecord(user.uid, "borrowers", id);
+      await refreshData();
+      navigate("/borrowers");
+    } catch (err) {
+      console.error(err);
+      setError("Failed to delete borrower.");
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="mx-auto max-w-2xl md:ml-56">
       <h1 className="text-2xl font-black text-slate-950">అప్పుదారు సవరించండి (Edit Borrower)</h1>
@@ -157,11 +183,11 @@ export function EditBorrower() {
         </div>
         <div className="mt-5 flex gap-2 w-full">
           <ActionButton 
-            className="flex-1" 
-            onClick={handleSave} 
+            className="flex-1 bg-red-50 text-red-600 hover:bg-red-100 border-0" 
+            onClick={handleDelete} 
             disabled={loading}
           >
-            {loading ? "Saving..." : "Save Changes"}
+            Delete
           </ActionButton>
           <ActionButton 
             variant="secondary"
@@ -169,6 +195,13 @@ export function EditBorrower() {
             onClick={() => navigate(`/borrowers/${id}`)}
           >
             Cancel
+          </ActionButton>
+          <ActionButton 
+            className="flex-1" 
+            onClick={handleSave} 
+            disabled={loading}
+          >
+            {loading ? "Saving..." : "Save"}
           </ActionButton>
         </div>
       </Card>

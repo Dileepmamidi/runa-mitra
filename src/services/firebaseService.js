@@ -1,6 +1,7 @@
 import {
   addDoc,
   collection,
+  deleteDoc,
   doc,
   getDoc,
   getDocs,
@@ -42,6 +43,10 @@ export async function updateUserRecord(uid, name, id, payload) {
     ...payload,
     updatedAt: serverTimestamp()
   });
+}
+
+export async function deleteUserRecord(uid, name, id) {
+  return deleteDoc(doc(db, "users", uid, name, id));
 }
 
 export async function getLoanPayments(uid, loanId) {
