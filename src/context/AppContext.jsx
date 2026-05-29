@@ -38,7 +38,7 @@ export function AppProvider({ children }) {
 
   const loadLenderData = useCallback(async (uid) => {
     try {
-      const [b, l, p, r, a, e] = await Promise.all([
+      const [b, l, p, r, a, e, m] = await Promise.all([
         listUserCollection(uid, "borrowers"),
         listUserCollection(uid, "loans"),
         listUserCollection(uid, "payments", [orderBy("createdAt", "desc")]),
@@ -64,7 +64,7 @@ export function AppProvider({ children }) {
       const lenderUid = link.lenderUid;
       const myBorrowerId = link.borrowerId;
 
-      const [b, l, p, r, a, e] = await Promise.all([
+      const [b, l, p, r, a, e, m] = await Promise.all([
         // Only load the borrower's own record (technically it's a list but we filter)
         listUserCollection(lenderUid, "borrowers"),
         listUserCollection(lenderUid, "loans", [where("borrowerId", "==", myBorrowerId)]),
