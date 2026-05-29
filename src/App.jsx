@@ -25,7 +25,6 @@ import { LoanDetails } from "./pages/LoanDetails";
 import { PaymentEntry } from "./pages/PaymentEntry";
 import { Profile } from "./pages/Profile";
 import { ProfileSetup } from "./pages/ProfileSetup";
-import { LenderInbox } from "./pages/LenderInbox";
 import { RepaymentExtension } from "./pages/RepaymentExtension";
 import { RiskAnalysis } from "./pages/RiskAnalysis";
 import { ScanOldNote } from "./pages/ScanOldNote";
