@@ -60,32 +60,29 @@ export function AppProvider({ children }) {
   }, []);
 
   const loadBorrowerData = useCallback(async (link) => {
-    try {
-      const lenderUid = link.lenderUid;
-      const myBorrowerId = link.borrowerId;
+    const lenderUid = link.lenderUid;
+    const myBorrowerId = link.borrowerId;
+    if (!lenderUid || !myBorrowerId) return;
 
-      const [b, l, p, r, a, e, m] = await Promise.all([
-        // Only load the borrower's own record (technically it's a list but we filter)
-        listUserCollection(lenderUid, "borrowers"),
-        listUserCollection(lenderUid, "loans", [where("borrowerId", "==", myBorrowerId)]),
-        listUserCollection(lenderUid, "payments", [where("borrowerId", "==", myBorrowerId)]),
-        listUserCollection(lenderUid, "reminders", [where("borrowerId", "==", myBorrowerId)]),
-        listUserCollection(lenderUid, "agreements", [where("borrowerId", "==", myBorrowerId)]),
-        listUserCollection(lenderUid, "evidence", [where("borrowerId", "==", myBorrowerId)]),
-        listUserCollection(lenderUid, "messages", [where("borrowerId", "==", myBorrowerId)])
-      ]);
+    const safe = async (fn) => { try { return await fn(); } catch { return []; } };
 
-      // Only expose the specific borrower
-      setBorrowers(b.filter(x => x.id === myBorrowerId));
-      setLoans(l);
-      setPayments(p);
-      setReminders(r);
-      setAgreements(a);
-      setEvidence(e);
-      setMessages(m);
-    } catch (error) {
-      console.error("Borrower load error", error);
-    }
+    const [b, l, p, r, a, e, m] = await Promise.all([
+      safe(() => listUserCollection(lenderUid, "borrowers")),
+      safe(() => listUserCollection(lenderUid, "loans", [where("borrowerId", "==", myBorrowerId)])),
+      safe(() => listUserCollection(lenderUid, "payments", [where("borrowerId", "==", myBorrowerId)])),
+      safe(() => listUserCollection(lenderUid, "reminders", [where("borrowerId", "==", myBorrowerId)])),
+      safe(() => listUserCollection(lenderUid, "agreements", [where("borrowerId", "==", myBorrowerId)])),
+      safe(() => listUserCollection(lenderUid, "evidence", [where("borrowerId", "==", myBorrowerId)])),
+      safe(() => listUserCollection(lenderUid, "messages", [where("borrowerId", "==", myBorrowerId)])),
+    ]);
+
+    setBorrowers(b.filter(x => x.id === myBorrowerId));
+    setLoans(l);
+    setPayments(p);
+    setReminders(r);
+    setAgreements(a);
+    setEvidence(e);
+    setMessages(m);
   }, []);
 
   // Listen to Firebase Auth state
