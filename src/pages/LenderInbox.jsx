@@ -1,16 +1,29 @@
 import { useState } from "react";
-import { MessageCircle, Phone, CheckCircle, XCircle, CreditCard, ExternalLink, Calendar, Clock, Bell } from "lucide-react";
+import { MessageCircle, Phone, CheckCircle, XCircle, CreditCard, ExternalLink, Calendar, Clock, Bell, RefreshCw } from "lucide-react";
 import { ActionButton } from "../components/ActionButton";
 import { Card } from "../components/Card";
 import { StatusBadge } from "../components/StatusBadge";
 import { useApp } from "../context/AppContext";
 import { currency } from "../utils/loanMath";
 import { updateUserRecord } from "../services/firebaseService";
+import { useEffect } from "react";
 
 export function LenderInbox() {
   const { user, borrowers, loans, payments, reminders, messages, refreshData } = useApp();
   const [activeTab, setActiveTab] = useState("approvals");
   const [processing, setProcessing] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Auto-refresh when tab opens
+  useEffect(() => {
+    refreshData();
+  }, []);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await refreshData();
+    setRefreshing(false);
+  };
 
   const pendingPayments = payments.filter(p => p.status === "pending_verification");
 
@@ -56,7 +69,17 @@ export function LenderInbox() {
 
   return (
     <div className="mx-auto max-w-3xl md:ml-56">
-      <h1 className="text-2xl font-black text-slate-950 mb-4">Inbox & Approvals</h1>
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-2xl font-black text-slate-950">Inbox & Approvals</h1>
+        <button 
+          onClick={handleRefresh}
+          disabled={refreshing}
+          className="flex items-center gap-2 rounded-full bg-slate-100 px-3 py-2 text-sm font-bold text-slate-600 hover:bg-slate-200 disabled:opacity-50"
+        >
+          <RefreshCw size={15} className={refreshing ? "animate-spin" : ""} />
+          {refreshing ? "Refreshing..." : "Refresh"}
+        </button>
+      </div>
       
       <div className="flex gap-2 border-b border-slate-200 pb-2 mb-4 overflow-x-auto no-scrollbar">
         <button 
