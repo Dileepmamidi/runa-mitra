@@ -64,7 +64,10 @@ export function BorrowerProfile() {
           )}
           
           <div className="min-w-0 flex-1">
-            <h1 className="text-2xl font-black text-slate-950">{borrower.name}</h1>
+            <div className="flex justify-between items-start">
+              <h1 className="text-2xl font-black text-slate-950">{borrower.name}</h1>
+              <Link to={`/borrowers/edit/${borrower.id}`} className="text-sm font-bold text-leaf-600 bg-leaf-50 px-3 py-1 rounded-full">Edit</Link>
+            </div>
             <p className="font-semibold text-slate-500">{borrower.occupation} · {borrower.village}</p>
             <div className="mt-2"><StatusBadge status={borrower.riskLevel || "Unknown"} /></div>
           </div>

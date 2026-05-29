@@ -12,6 +12,7 @@ import { AadhaarVerification } from "./pages/AadhaarVerification";
 import { Analytics } from "./pages/Analytics";
 import { BackupRestore } from "./pages/BackupRestore";
 import { BorrowerProfile } from "./pages/BorrowerProfile";
+import { EditBorrower } from "./pages/EditBorrower";
 import { BorrowersList } from "./pages/BorrowersList";
 import { Collateral } from "./pages/Collateral";
 import { Communication } from "./pages/Communication";
@@ -75,6 +76,7 @@ export default function App() {
             <Route path="/home" element={<HomeDashboard />} />
             <Route path="/borrowers" element={<BorrowersList />} />
             <Route path="/borrowers/new" element={<AddBorrower />} />
+            <Route path="/borrowers/edit/:id" element={<EditBorrower />} />
             <Route path="/borrowers/:id" element={<BorrowerProfile />} />
             <Route path="/loans/new" element={<AddLoan />} />
             <Route path="/loans/:id" element={<LoanDetails />} />
