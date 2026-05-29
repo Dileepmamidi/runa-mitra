@@ -6,7 +6,7 @@ const navItems = [
   { to: "/home", labelKey: "home", icon: Home },
   { to: "/borrowers", labelKey: "borrowers", icon: UsersRound },
   { to: "/loans/new", labelKey: "addLoan", icon: PlusCircle },
-  { to: "/reminders", labelKey: "reminders", icon: Bell },
+  { to: "/inbox", labelKey: "inbox", icon: Bell },
   { to: "/profile", labelKey: "profile", icon: User }
 ];
 

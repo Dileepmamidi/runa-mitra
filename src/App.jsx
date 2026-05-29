@@ -20,11 +20,12 @@ import { FamilyAccess } from "./pages/FamilyAccess";
 import { Guarantor } from "./pages/Guarantor";
 import { HomeDashboard } from "./pages/HomeDashboard";
 import { InterestCalculator } from "./pages/InterestCalculator";
+import { LenderInbox } from "./pages/LenderInbox";
 import { LoanDetails } from "./pages/LoanDetails";
 import { PaymentEntry } from "./pages/PaymentEntry";
 import { Profile } from "./pages/Profile";
 import { ProfileSetup } from "./pages/ProfileSetup";
-import { Reminders } from "./pages/Reminders";
+import { LenderInbox } from "./pages/LenderInbox";
 import { RepaymentExtension } from "./pages/RepaymentExtension";
 import { RiskAnalysis } from "./pages/RiskAnalysis";
 import { ScanOldNote } from "./pages/ScanOldNote";
@@ -89,7 +90,7 @@ export default function App() {
             <Route path="/collateral" element={<Collateral />} />
             <Route path="/analytics" element={<Analytics />} />
             <Route path="/risk" element={<RiskAnalysis />} />
-            <Route path="/reminders" element={<Reminders />} />
+            <Route path="/inbox" element={<LenderInbox />} />
             <Route path="/communication" element={<Communication />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/backup" element={<BackupRestore />} />

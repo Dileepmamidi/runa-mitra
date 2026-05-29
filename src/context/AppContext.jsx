@@ -34,6 +34,7 @@ export function AppProvider({ children }) {
   const [reminders, setReminders] = useState([]);
   const [agreements, setAgreements] = useState([]);
   const [evidence, setEvidence] = useState([]);
+  const [messages, setMessages] = useState([]);
 
   const loadLenderData = useCallback(async (uid) => {
     try {
@@ -43,7 +44,8 @@ export function AppProvider({ children }) {
         listUserCollection(uid, "payments", [orderBy("createdAt", "desc")]),
         listUserCollection(uid, "reminders"),
         listUserCollection(uid, "agreements"),
-        listUserCollection(uid, "evidence")
+        listUserCollection(uid, "evidence"),
+        listUserCollection(uid, "messages", [orderBy("createdAt", "desc")])
       ]);
       setBorrowers(b);
       setLoans(l);
@@ -51,6 +53,7 @@ export function AppProvider({ children }) {
       setReminders(r);
       setAgreements(a);
       setEvidence(e);
+      setMessages(m);
     } catch {
       // Firestore not ready yet — keep empty arrays
     }
@@ -68,7 +71,8 @@ export function AppProvider({ children }) {
         listUserCollection(lenderUid, "payments", [where("borrowerId", "==", myBorrowerId)]),
         listUserCollection(lenderUid, "reminders", [where("borrowerId", "==", myBorrowerId)]),
         listUserCollection(lenderUid, "agreements", [where("borrowerId", "==", myBorrowerId)]),
-        listUserCollection(lenderUid, "evidence", [where("borrowerId", "==", myBorrowerId)])
+        listUserCollection(lenderUid, "evidence", [where("borrowerId", "==", myBorrowerId)]),
+        listUserCollection(lenderUid, "messages", [where("borrowerId", "==", myBorrowerId)])
       ]);
 
       // Only expose the specific borrower
@@ -78,6 +82,7 @@ export function AppProvider({ children }) {
       setReminders(r);
       setAgreements(a);
       setEvidence(e);
+      setMessages(m);
     } catch (error) {
       console.error("Borrower load error", error);
     }
@@ -134,6 +139,7 @@ export function AppProvider({ children }) {
         setReminders([]);
         setAgreements([]);
         setEvidence([]);
+        setMessages([]);
       }
       setAuthLoading(false);
     });
@@ -186,10 +192,11 @@ export function AppProvider({ children }) {
       reminders,
       agreements,
       evidence,
+      messages,
       refreshData,
       switchRole
     }),
-    [appMode, language, user, userRole, availableRoles, borrowerLink, lender, authLoading, borrowers, loans, payments, reminders, agreements, evidence]
+    [appMode, language, user, userRole, availableRoles, borrowerLink, lender, authLoading, borrowers, loans, payments, reminders, agreements, evidence, messages]
   );
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
