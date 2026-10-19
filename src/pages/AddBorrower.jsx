@@ -1,32 +1,103 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ActionButton } from "../components/ActionButton";
-import { Card } from "../components/Card";
-import { Field, SelectInput, TextArea, TextInput } from "../components/FormControls";
+import { Camera, UserPlus } from "lucide-react";
 import { useApp } from "../context/AppContext";
+import { useCopy } from "../i18n/useCopy";
 import { addUserRecord, uploadEvidence, createBorrowerLink } from "../services/firebaseService";
+import { loanLabelsCopy } from "../components/LoanBreakdown.copy";
+import { BottomAction, Button, Card, Field, FilePicker, Input, Notice, Screen, Section, Select, TextArea } from "../ui";
+import { addBorrowerCopy, borrowerFormCopy } from "./AddBorrower.copy";
+
+export const emptyBorrowerForm = {
+  name: "",
+  fatherName: "",
+  mobile: "",
+  whatsapp: "",
+  village: "",
+  occupation: "Farmer",
+  address: "",
+  nomineeName: "",
+  nomineeMobile: "",
+  guarantorName: "",
+  guarantorMobile: "",
+  familyContact: "",
+  notes: ""
+};
+
+export const OCCUPATIONS = ["Farmer", "Employee", "Shopkeeper", "Business", "Daily wage", "Other"];
+
+// 10 digits, optionally written with +91 / 91 / 0 in front.
+export function isValidMobile(value) {
+  const digits = String(value || "").replace(/\D/g, "");
+  const local = digits.length === 12 && digits.startsWith("91") ? digits.slice(2) : digits.length === 11 && digits.startsWith("0") ? digits.slice(1) : digits;
+  return /^[6-9]\d{9}$/.test(local);
+}
+
+/** Form fields shared by Add and Edit borrower. */
+export function BorrowerForm({ formData, onChange, photoFile, onPhoto, mobileLocked }) {
+  const f = useCopy(borrowerFormCopy);
+  const labels = useCopy(loanLabelsCopy);
+  const opt = (label) => `${label} (${f.optional})`;
+  return (
+    <>
+      <Section title={f.basics}>
+        <Card className="grid gap-4">
+          <Field label={f.name}>
+            <Input name="name" value={formData.name} onChange={onChange} placeholder={f.namePlaceholder} autoComplete="off" />
+          </Field>
+          <Field label={f.mobile} hint={mobileLocked ? f.mobileLocked : f.mobileHint}>
+            <Input name="mobile" value={formData.mobile} onChange={onChange} inputMode="tel" readOnly={mobileLocked} disabled={mobileLocked} placeholder="98765 43210" />
+          </Field>
+          <Field label={f.village}>
+            <Input name="village" value={formData.village} onChange={onChange} />
+          </Field>
+          <Field label={f.occupation}>
+            <Select name="occupation" value={formData.occupation} onChange={onChange}>
+              {OCCUPATIONS.map((o) => <option key={o} value={o}>{labels.occupations[o]}</option>)}
+            </Select>
+          </Field>
+          <Field label={opt(f.fatherName)}>
+            <Input name="fatherName" value={formData.fatherName} onChange={onChange} />
+          </Field>
+          <Field label={opt(f.whatsapp)}>
+            <Input name="whatsapp" value={formData.whatsapp} onChange={onChange} inputMode="tel" />
+          </Field>
+          <Field label={opt(f.address)}>
+            <TextArea name="address" value={formData.address} onChange={onChange} placeholder={f.addressPlaceholder} />
+          </Field>
+          <FilePicker label={f.photo} accept="image/*" icon={Camera} file={photoFile} onChange={onPhoto} placeholder={f.photoPick} />
+        </Card>
+      </Section>
+
+      <Section title={f.contacts}>
+        <Card className="grid gap-4">
+          <Field label={opt(f.nomineeName)}><Input name="nomineeName" value={formData.nomineeName} onChange={onChange} /></Field>
+          <Field label={opt(f.nomineeMobile)}><Input name="nomineeMobile" value={formData.nomineeMobile} onChange={onChange} inputMode="tel" /></Field>
+          <Field label={opt(f.guarantorName)}><Input name="guarantorName" value={formData.guarantorName} onChange={onChange} /></Field>
+          <Field label={opt(f.guarantorMobile)}><Input name="guarantorMobile" value={formData.guarantorMobile} onChange={onChange} inputMode="tel" /></Field>
+          <Field label={opt(f.familyContact)}><Input name="familyContact" value={formData.familyContact} onChange={onChange} inputMode="tel" /></Field>
+        </Card>
+      </Section>
+
+      <Section title={f.notes}>
+        <Card>
+          <Field hint={f.notesHint}>
+            <TextArea name="notes" value={formData.notes} onChange={onChange} />
+          </Field>
+        </Card>
+      </Section>
+    </>
+  );
+}
 
 export function AddBorrower() {
   const { user, lender, refreshData } = useApp();
+  const s = useCopy(addBorrowerCopy);
+  const f = useCopy(borrowerFormCopy);
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-
-  const [formData, setFormData] = useState({
-    name: "",
-    fatherName: "",
-    mobile: "",
-    whatsapp: "",
-    village: "",
-    occupation: "Farmer",
-    address: "",
-    nomineeName: "",
-    nomineeMobile: "",
-    guarantorName: "",
-    guarantorMobile: "",
-    familyContact: ""
-  });
-
+  const [formData, setFormData] = useState(emptyBorrowerForm);
   const [photoFile, setPhotoFile] = useState(null);
 
   const handleChange = (e) => {
@@ -36,122 +107,48 @@ export function AddBorrower() {
 
   const handleSave = async () => {
     setError("");
-    if (!formData.name || !formData.mobile) {
-      setError("Name and Mobile are required.");
-      return;
-    }
-    if (!user) {
-      setError("You must be logged in to add a borrower.");
-      return;
-    }
+    if (!formData.name.trim() || !formData.mobile.trim()) return setError(f.errRequired);
+    if (!isValidMobile(formData.mobile)) return setError(f.errMobile);
+    if (!user) return setError(f.errLogin);
 
     try {
       setLoading(true);
       let photoUrl = "";
+      if (photoFile) photoUrl = await uploadEvidence(user.uid, photoFile);
 
-      // 1. Upload photo if provided
-      if (photoFile) {
-        photoUrl = await uploadEvidence(user.uid, photoFile);
-      }
-
-      // 2. Save borrower data
       const borrowerData = {
         ...formData,
+        name: formData.name.trim(),
+        mobile: formData.mobile.trim(),
         photoUrl,
         status: "active",
         pendingAmount: 0,
-        createdAt: new Date() // Firestore timestamp will be created server-side, but this sets a local timestamp initially
+        createdAt: new Date()
       };
-
       const docRef = await addUserRecord(user.uid, "borrowers", borrowerData);
-      
-      // 2b. Create borrower link for role-based login
-      await createBorrowerLink(formData.mobile, user.uid, docRef.id, { lenderName: lender.name, borrowerName: formData.name });
-      
-      // 3. Refresh context and navigate
+
+      // Invitation so the borrower can see their loans after signing in with this phone.
+      await createBorrowerLink(borrowerData.mobile, user.uid, docRef.id, { lenderName: lender.name, borrowerName: borrowerData.name });
+
       await refreshData();
-      navigate("/home");
+      navigate(`/borrowers/${docRef.id}`);
     } catch (err) {
       console.error(err);
-      setError("Failed to save borrower. Check internet connection.");
+      setError(s.saveError);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="mx-auto max-w-2xl md:ml-56">
-      <h1 className="text-2xl font-black text-slate-950">అప్పుదారు జోడించండి</h1>
-      
-      {error && (
-        <div className="mt-4 rounded-[6px] bg-red-50 p-3 text-sm font-bold text-red-600">
-          {error}
-        </div>
-      )}
-
-      <Card className="mt-4">
-        <div className="grid gap-4 md:grid-cols-2">
-          <Field label="Name">
-            <TextInput name="name" value={formData.name} onChange={handleChange} placeholder="Borrower name" />
-          </Field>
-          <Field label="Father name">
-            <TextInput name="fatherName" value={formData.fatherName} onChange={handleChange} placeholder="Father name" />
-          </Field>
-          <Field label="Mobile">
-            <TextInput name="mobile" value={formData.mobile} onChange={handleChange} inputMode="numeric" placeholder="Mobile number" />
-          </Field>
-          <Field label="WhatsApp">
-            <TextInput name="whatsapp" value={formData.whatsapp} onChange={handleChange} inputMode="numeric" placeholder="WhatsApp number" />
-          </Field>
-          <Field label="Village">
-            <TextInput name="village" value={formData.village} onChange={handleChange} placeholder="Village" />
-          </Field>
-          <Field label="Occupation">
-            <SelectInput name="occupation" value={formData.occupation} onChange={handleChange}>
-              <option>Farmer</option>
-              <option>Employee</option>
-              <option>Shopkeeper</option>
-              <option>Business</option>
-              <option>Daily wage</option>
-              <option>Other</option>
-            </SelectInput>
-          </Field>
-          <Field label="Address">
-            <TextArea name="address" value={formData.address} onChange={handleChange} placeholder="Street, landmark, village" />
-          </Field>
-          <Field label="Nominee name">
-            <TextInput name="nomineeName" value={formData.nomineeName} onChange={handleChange} placeholder="Nominee name" />
-          </Field>
-          <Field label="Nominee mobile">
-            <TextInput name="nomineeMobile" value={formData.nomineeMobile} onChange={handleChange} inputMode="numeric" placeholder="Nominee mobile number" />
-          </Field>
-          <Field label="Guarantor name optional">
-            <TextInput name="guarantorName" value={formData.guarantorName} onChange={handleChange} placeholder="Guarantor name" />
-          </Field>
-          <Field label="Guarantor mobile optional">
-            <TextInput name="guarantorMobile" value={formData.guarantorMobile} onChange={handleChange} inputMode="numeric" placeholder="Guarantor mobile number" />
-          </Field>
-          <Field label="Family contact mobile">
-            <TextInput name="familyContact" value={formData.familyContact} onChange={handleChange} inputMode="numeric" placeholder="Emergency family mobile" />
-          </Field>
-          <Field label="Photo (Opens Camera)">
-            {/* The 'capture="environment"' attribute allows mobile phones to open the camera directly */}
-            <TextInput 
-              type="file" 
-              accept="image/*" 
-              capture="environment"
-              onChange={(e) => setPhotoFile(e.target.files[0])} 
-            />
-          </Field>
-        </div>
-        <ActionButton 
-          className="mt-5 w-full" 
-          onClick={handleSave} 
-          disabled={loading}
-        >
-          {loading ? "Saving..." : "Save Borrower"}
-        </ActionButton>
-      </Card>
-    </div>
+    <Screen title={s.title} subtitle={s.subtitle} back>
+      <BorrowerForm formData={formData} onChange={handleChange} photoFile={photoFile} onPhoto={setPhotoFile} />
+      {error && <Notice tone="error">{error}</Notice>}
+      <BottomAction>
+        <Button size="lg" block icon={UserPlus} onClick={handleSave} loading={loading}>
+          {loading ? s.saving : s.save}
+        </Button>
+      </BottomAction>
+    </Screen>
   );
 }

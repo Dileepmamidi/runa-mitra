@@ -1,16 +1,23 @@
-import { CloudDownload, CloudUpload, RefreshCcw } from "lucide-react";
-import { ActionButton } from "../components/ActionButton";
-import { Card } from "../components/Card";
+import { useApp } from "../context/AppContext";
+import { useCopy } from "../i18n/useCopy";
+import { Card, Notice, NotAvailable, Screen, Section } from "../ui";
+import { backupCopy } from "./BackupRestore.copy";
 
+// Honest placeholder: this feature is not built yet and saves nothing.
 export function BackupRestore() {
+  const { t } = useApp();
+  const s = useCopy(backupCopy);
   return (
-    <div className="mx-auto max-w-2xl md:ml-56">
-      <h1 className="text-2xl font-black text-slate-950">Backup & Restore</h1>
-      <div className="mt-4 grid gap-3">
-        <Card><h2 className="font-black">Cloud backup</h2><p className="mt-1 text-sm text-slate-500">Firestore sync keeps user-specific records backed up.</p><ActionButton className="mt-4"><CloudUpload size={18} /> Backup now</ActionButton></Card>
-        <Card><h2 className="font-black">Restore</h2><p className="mt-1 text-sm text-slate-500">Bring records back after phone change.</p><ActionButton className="mt-4" variant="secondary"><CloudDownload size={18} /> Restore</ActionButton></Card>
-        <Card><h2 className="font-black">Device sync</h2><p className="mt-1 text-sm text-slate-500">Offline records sync when internet returns.</p><ActionButton className="mt-4" variant="secondary"><RefreshCcw size={18} /> Sync</ActionButton></Card>
-      </div>
-    </div>
+    <Screen title={s.title} back="/more">
+      <NotAvailable title={t.notAvailable} text={t.notAvailableText} />
+      <Section title={s.planTitle}>
+        <Card>
+          <ul className="grid list-disc gap-2 pl-5 text-[15px] font-medium text-ink">
+            {s.points.map((point) => <li key={point}>{point}</li>)}
+          </ul>
+        </Card>
+      </Section>
+      <Notice tone="info">{s.today}</Notice>
+    </Screen>
   );
 }

@@ -1,48 +1,68 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { CreditCard, QrCode, Upload, Receipt, ArrowLeft } from "lucide-react";
+import { Banknote, Camera, Landmark, Send, Smartphone, Wallet } from "lucide-react";
 import { useApp } from "../../context/AppContext";
-import { currency } from "../../utils/loanMath";
-import { Card, SectionTitle } from "../../components/Card";
-import { Field, SelectInput, TextInput, TextArea } from "../../components/FormControls";
-import { ActionButton } from "../../components/ActionButton";
+import { useCopy } from "../../i18n/useCopy";
 import { addUserRecord, uploadEvidence } from "../../services/firebaseService";
+import { formatPaise } from "../../utils/interestEngine";
+import { Button, Card, EmptyState, Field, FilePicker, Input, Notice, Screen, Select } from "../../ui";
+import { openLoans, principalPaiseOf, loanStartKey, useBorrowerLoans } from "./borrowerData";
+import { borrowerSharedCopy } from "./BorrowerShared.copy";
+import { borrowerMakePaymentCopy } from "./BorrowerMakePayment.copy";
+
+const MAX_BYTES = 15 * 1024 * 1024;
+const METHODS = [
+  { value: "UPI", icon: Smartphone },
+  { value: "Bank Transfer", icon: Landmark },
+  { value: "Cash", icon: Banknote }
+];
 
 export function BorrowerMakePayment() {
   const [searchParams] = useSearchParams();
-  const initialLoanId = searchParams.get("loanId") || "";
-  
-  const { user, borrowerLink, loans, refreshData } = useApp();
+  const { user, refreshData } = useApp();
   const navigate = useNavigate();
+  const s = useCopy(borrowerMakePaymentCopy);
+  const sh = useCopy(borrowerSharedCopy);
 
-  const [loanId, setLoanId] = useState(initialLoanId);
+  const activeItems = openLoans(useBorrowerLoans());
+  const initialLoanId = searchParams.get("loanId") || (activeItems.length === 1 ? activeItems[0].loan.id : "");
+
+  const [chosenLoanId, setLoanId] = useState("");
+  const loanId = chosenLoanId || initialLoanId;
   const [amount, setAmount] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("UPI");
   const [referenceId, setReferenceId] = useState("");
   const [screenshotFile, setScreenshotFile] = useState(null);
-  
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  const activeLoans = loans.filter(l => l.balance > 0);
-  const selectedLoan = loans.find(l => l.id === loanId);
+  const selected = activeItems.find((x) => x.loan.id === loanId);
+  const selectedLoan = selected?.loan;
+
+  const pickFile = (file) => {
+    setError("");
+    if (file && !file.type.startsWith("image/")) { setScreenshotFile(null); return setError(s.errImage); }
+    if (file && file.size >= MAX_BYTES) { setScreenshotFile(null); return setError(sh.fileTooBig); }
+    setScreenshotFile(file);
+  };
 
   const handleSubmit = async () => {
     setError("");
     setSuccess("");
-    if (!loanId) return setError("Please select a loan.");
-    if (!amount || Number(amount) <= 0) return setError("Please enter a valid amount.");
-    if (!referenceId.trim() && !screenshotFile) return setError("Please provide a UPI reference ID or a screenshot of your payment.");
-    
+    if (!selectedLoan) return setError(s.errLoan);
+    if (!amount || Number(amount) <= 0) return setError(s.errAmount);
+    // Cash handed over has no reference number; proof stays optional for it.
+    if (paymentMethod !== "Cash" && !referenceId.trim() && !screenshotFile) return setError(s.errProof);
+
     try {
       setLoading(true);
       let screenshotUrl = "";
-      
       if (screenshotFile) {
         screenshotUrl = await uploadEvidence(selectedLoan.lenderUid, screenshotFile, ["payments", selectedLoan._borrowerId]);
       }
-      
+
       const paymentData = {
         borrowerId: selectedLoan._borrowerId,
         borrowerUid: user.uid,
@@ -52,122 +72,117 @@ export function BorrowerMakePayment() {
         referenceId,
         screenshotUrl,
         paymentDate: new Date().toISOString().split("T")[0],
-        status: "pending_verification", // Lender needs to approve this
+        status: "pending_verification", // the lender must approve it first
         createdAt: new Date(),
         type: "borrower_submitted"
       };
 
-      // Save to lender's payments collection
+      // Saved in the lender's payments; the balance changes only after approval.
       await addUserRecord(selectedLoan.lenderUid, "payments", paymentData);
-      
-      // We do NOT instantly deduct the balance here. 
-      // The lender must verify and approve it on their dashboard first.
-      
-      setSuccess("Payment details submitted! Awaiting lender confirmation.");
+
+      setSuccess(s.success);
       await refreshData();
       setTimeout(() => navigate("/payments"), 2000);
-      
     } catch (err) {
-      console.error("Payment Submission Error:", err);
-      setError(`Error: ${err.message || "Failed to submit payment."}`);
+      console.error("Payment submission error:", err);
+      setError(sh.sendError);
     } finally {
       setLoading(false);
     }
   };
 
-  return (
-    <div className="mx-auto max-w-2xl pb-10">
-      <div className="mb-6 flex items-center gap-3">
-        <button onClick={() => navigate(-1)} className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200">
-          <ArrowLeft size={20} />
-        </button>
-        <h2 className="text-3xl font-black text-slate-950">చెల్లింపు (Make Payment)</h2>
-      </div>
-      
-      {error && <div className="mb-4 rounded-[8px] bg-red-50 p-4 font-bold text-red-600">{error}</div>}
-      {success && <div className="mb-4 rounded-[8px] bg-leaf-50 p-4 font-bold text-leaf-700">{success}</div>}
+  if (activeItems.length === 0) {
+    return (
+      <Screen title={s.title} back>
+        <EmptyState icon={Wallet} title={s.noLoansTitle} text={s.noLoansText} />
+      </Screen>
+    );
+  }
 
-      <Card className="mb-4 bg-slate-800 text-white border-0 shadow-lg">
-        <div className="flex items-start justify-between">
+  return (
+    <Screen title={s.title} subtitle={s.subtitle} back>
+      <Notice tone="info" title={s.howItWorks}>{s.howItWorksText}</Notice>
+
+      <Card>
+        <div className="grid gap-5">
+          {activeItems.length > 1 || !selectedLoan ? (
+            <Field label={sh.chooseLoan}>
+              <Select value={loanId} onChange={(e) => setLoanId(e.target.value)}>
+                <option value="">{sh.chooseLoanPlaceholder}</option>
+                {activeItems.map(({ loan }) => (
+                  <option key={`${loan.lenderUid}_${loan.id}`} value={loan.id}>
+                    {sh.loanOption(loan.lenderName, principalPaiseOf(loan) ? formatPaise(principalPaiseOf(loan)) : "", loanStartKey(loan) ? sh.date(loanStartKey(loan)) : "")}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          ) : (
+            <p className="text-[17px] font-bold text-ink">{sh.loanFrom(selectedLoan.lenderName)}</p>
+          )}
+          {selected?.calc.status === "ok" && (
+            <p className="-mt-2 text-[15px] font-semibold text-ink-soft">{s.owes(formatPaise(selected.calc.outstandingPaise))}</p>
+          )}
+
+          <Field label={s.amount}>
+            <Input
+              type="number"
+              inputMode="numeric"
+              min="1"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder={s.amountPlaceholder}
+              className="tabular min-h-[64px] text-[26px] font-extrabold"
+            />
+          </Field>
+
           <div>
-            <p className="text-sm font-bold text-slate-400">Total Pending Balance</p>
-            <p className="mt-1 text-3xl font-black text-white">
-              {currency(activeLoans.reduce((sum, l) => sum + l.balance, 0))}
-            </p>
+            <p className="mb-1.5 text-[15px] font-bold text-ink">{s.method}</p>
+            <div className="grid gap-2">
+              {METHODS.map(({ value, icon: Icon }) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setPaymentMethod(value)}
+                  aria-pressed={paymentMethod === value}
+                  className={`flex min-h-14 items-center gap-3 rounded-xl border px-4 text-left text-[16px] font-bold transition ${
+                    paymentMethod === value ? "border-brand-500 bg-brand-50 text-brand-800 ring-2 ring-brand-200" : "border-line bg-white text-ink"
+                  }`}
+                >
+                  <Icon size={22} className="shrink-0" />
+                  {s.methods[value]}
+                </button>
+              ))}
+            </div>
           </div>
-          <CreditCard size={32} className="text-slate-400 opacity-50" />
         </div>
       </Card>
 
       <Card>
-        <SectionTitle title="Payment Details" />
-        
+        <p className="text-[17px] font-bold text-ink">{s.proof}</p>
+        <p className="mt-1 text-[14px] font-medium text-ink-muted">{paymentMethod === "Cash" ? s.proofHintCash : s.proofHint}</p>
         <div className="mt-4 grid gap-4">
-          <Field label="Select Loan">
-            <SelectInput value={loanId} onChange={e => setLoanId(e.target.value)}>
-              <option value="">Select a loan</option>
-              {activeLoans.map(l => (
-                <option key={l.id} value={l.id}>Principal: ₹{l.principal} (Pending: ₹{l.balance})</option>
-              ))}
-            </SelectInput>
-          </Field>
-          
-          <Field label="Amount you paid (₹)">
-            <TextInput 
-              type="number"
-              inputMode="numeric"
-              value={amount} 
-              onChange={e => setAmount(e.target.value)} 
-              placeholder="e.g. 5000"
-            />
-          </Field>
-          
-          <Field label="Payment Method">
-            <SelectInput value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)}>
-              <option value="UPI">UPI (PhonePe / GPay / Paytm)</option>
-              <option value="Bank Transfer">Bank Transfer (NEFT/IMPS)</option>
-              <option value="Cash">Cash (Handed directly)</option>
-            </SelectInput>
-          </Field>
+          {paymentMethod !== "Cash" && (
+            <Field label={s.reference}>
+              <Input value={referenceId} onChange={(e) => setReferenceId(e.target.value)} placeholder={s.referencePlaceholder} inputMode="text" />
+            </Field>
+          )}
+          <FilePicker
+            label={s.screenshot}
+            accept="image/*"
+            file={screenshotFile}
+            onChange={pickFile}
+            icon={Camera}
+            placeholder={s.screenshotPlaceholder}
+          />
         </div>
       </Card>
 
-      <Card className="mt-4">
-        <SectionTitle title="Verification (Proof of Payment)" />
-        <p className="mt-1 text-sm font-semibold text-slate-500 mb-4">
-          If you paid via UPI or Bank, please upload a screenshot or enter the reference number so the lender can verify.
-        </p>
+      {error && <Notice tone="error">{error}</Notice>}
+      {success && <Notice tone="success">{success}</Notice>}
 
-        <div className="grid gap-4">
-          <Field label="Transaction ID / UPI Ref">
-            <TextInput 
-              value={referenceId} 
-              onChange={e => setReferenceId(e.target.value)} 
-              placeholder="e.g. 314159265358"
-            />
-          </Field>
-
-          <Field label="Upload Screenshot (Camera / Gallery)">
-            <TextInput 
-              type="file" 
-              accept="image/*"
-              onChange={e => setScreenshotFile(e.target.files[0])} 
-            />
-          </Field>
-        </div>
-        
-        <ActionButton onClick={handleSubmit} disabled={loading || !loanId || !amount} className="mt-6 w-full h-14 text-lg">
-          {loading ? "Submitting..." : "Submit Payment Record"}
-        </ActionButton>
-      </Card>
-      
-      {/* Future UPI Placeholder */}
-      <div className="mt-6 text-center">
-        <p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Future Ready Architecture</p>
-        <button disabled className="mx-auto flex h-12 w-full max-w-xs items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 font-bold text-slate-400">
-          <QrCode size={18} /> Direct UPI Integration Pending
-        </button>
-      </div>
-    </div>
+      <Button size="lg" block icon={Send} loading={loading} disabled={loading || Boolean(success)} onClick={handleSubmit}>
+        {loading ? s.sending : s.submit}
+      </Button>
+    </Screen>
   );
 }

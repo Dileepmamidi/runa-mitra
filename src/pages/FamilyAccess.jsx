@@ -1,22 +1,23 @@
-import { ShieldCheck } from "lucide-react";
-import { ActionButton } from "../components/ActionButton";
-import { Card } from "../components/Card";
-import { Field, SelectInput, TextInput } from "../components/FormControls";
+import { useApp } from "../context/AppContext";
+import { useCopy } from "../i18n/useCopy";
+import { Card, Notice, NotAvailable, Screen, Section } from "../ui";
+import { familyAccessCopy } from "./FamilyAccess.copy";
 
+// Honest placeholder: this feature is not built yet and saves nothing.
 export function FamilyAccess() {
+  const { t } = useApp();
+  const s = useCopy(familyAccessCopy);
   return (
-    <div className="mx-auto max-w-2xl md:ml-56">
-      <h1 className="text-2xl font-black text-slate-950">Family Access</h1>
-      <Card className="mt-4">
-        <ShieldCheck size={42} className="text-leaf-700" />
-        <p className="mt-3 text-sm font-semibold text-slate-500">Trusted family member can help understand records during emergency.</p>
-        <div className="mt-5 grid gap-4">
-          <Field label="Family member name"><TextInput /></Field>
-          <Field label="Mobile"><TextInput inputMode="numeric" /></Field>
-          <Field label="Permission"><SelectInput><option>View only</option><option>Emergency recovery</option></SelectInput></Field>
-          <ActionButton>Save Trusted Access</ActionButton>
-        </div>
-      </Card>
-    </div>
+    <Screen title={s.title} back="/more">
+      <NotAvailable title={t.notAvailable} text={t.notAvailableText} />
+      <Section title={s.planTitle}>
+        <Card>
+          <ul className="grid list-disc gap-2 pl-5 text-[15px] font-medium text-ink">
+            {s.points.map((point) => <li key={point}>{point}</li>)}
+          </ul>
+        </Card>
+      </Section>
+      <Notice tone="info">{s.today}</Notice>
+    </Screen>
   );
 }

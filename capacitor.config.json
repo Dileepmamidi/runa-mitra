@@ -1,0 +1,21 @@
+{
+  "appId": "com.runamitra.app",
+  "appName": "Runa Mitra",
+  "webDir": "dist",
+  "android": {
+    "allowMixedContent": false
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 800,
+      "launchAutoHide": true,
+      "backgroundColor": "#13775e",
+      "showSpinner": false
+    },
+    "StatusBar": {
+      "style": "LIGHT",
+      "backgroundColor": "#f5f6f3",
+      "overlaysWebView": false
+    }
+  }
+}

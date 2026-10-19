@@ -1,10 +1,12 @@
 import { useState, useRef, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { LockKeyhole, Smartphone } from "lucide-react";
-import { ActionButton } from "../components/ActionButton";
-import { Field, TextInput } from "../components/FormControls";
+import { Navigate, useNavigate } from "react-router-dom";
+import { useApp } from "../context/AppContext";
+import { ShieldCheck } from "lucide-react";
 import { auth } from "../config/firebase";
 import { RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
+import { useCopy } from "../i18n/useCopy";
+import { Button, Field, Input, Notice } from "../ui";
+import { loginCopy } from "./Onboarding.copy";
 
 function makeVerifier() {
   return new RecaptchaVerifier(auth, "recaptcha-container", {
@@ -15,6 +17,8 @@ function makeVerifier() {
 }
 
 export function Login() {
+  const s = useCopy(loginCopy);
+  const { user, authLoading } = useApp();
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
   const [otpSent, setOtpSent] = useState(false);
@@ -53,11 +57,11 @@ export function Login() {
     setError("");
     const trimmed = phone.trim().replace(/\s/g, "");
     if (!trimmed || trimmed.length < 10) {
-      setError("దయచేసి valid mobile number ఇవ్వండి.");
+      setError(s.invalidPhone);
       return;
     }
     if (!verifierRef.current) {
-      setError("reCAPTCHA సిద్ధంగా లేదు. కొంచెం వేచి మళ్ళీ ప్రయత్నించండి.");
+      setError(s.captchaNotReady);
       return;
     }
     try {
@@ -69,7 +73,7 @@ export function Login() {
     } catch (err) {
       console.error("OTP error:", err.code, err.message);
       resetVerifier();
-      setError("OTP పంపడంలో తప్పు జరిగింది: " + (err.message || "మళ్ళీ ప్రయత్నించండి."));
+      setError(s.sendFailed);
     } finally {
       setLoading(false);
     }
@@ -78,7 +82,7 @@ export function Login() {
   const handleVerifyOtp = async () => {
     setError("");
     if (!otp || otp.length !== 6) {
-      setError("6 digit OTP ఇవ్వండి.");
+      setError(s.invalidOtp);
       return;
     }
     try {
@@ -87,85 +91,85 @@ export function Login() {
       navigate("/home");
     } catch (err) {
       console.error("Verify error:", err);
-      setError("OTP తప్పు లేదా expired అయింది. మళ్ళీ ప్రయత్నించండి.");
+      setError(s.wrongOtp);
     } finally {
       setLoading(false);
     }
   };
 
+  if (user && !authLoading) return <Navigate to="/home" replace />;
+
+  const formattedPhone = (() => {
+    const trimmed = phone.trim().replace(/\s/g, "");
+    return trimmed.startsWith("+") ? trimmed : `+91 ${trimmed}`;
+  })();
+
   return (
-    <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-5">
-      <div className="rounded-[8px] bg-white p-5 shadow-soft">
-        <Smartphone className="text-leaf-600" size={42} />
-        <h1 className="mt-5 text-3xl font-black text-slate-950">మొబైల్ లాగిన్</h1>
-        <p className="mt-2 text-sm font-semibold text-slate-500">
-          OTP ద్వారా సురక్షితంగా లోపలికి వెళ్లండి.
-        </p>
+    <main className="safe-top mx-auto flex min-h-screen max-w-md flex-col bg-canvas px-5 pb-8">
+      <div className="flex-1 pt-16">
+        <img src="/logo.svg" alt="" className="h-14 w-14 rounded-2xl shadow-soft" />
+        <h1 className="mt-6 text-[30px] font-extrabold leading-tight text-ink">{s.title}</h1>
+        <p className="mt-2 text-[16px] font-medium text-ink-soft">{otpSent ? s.sentTo(formattedPhone) : s.subtitle}</p>
 
-        {error && (
-          <div className="mt-3 rounded-[6px] bg-red-50 px-3 py-2 text-sm font-semibold text-red-600">
-            {error}
-          </div>
-        )}
+        <div className="mt-8 grid gap-4">
+          {error && <Notice tone="error">{error}</Notice>}
 
-        <div className="mt-6 grid gap-4">
-          <Field label="Mobile number">
-            <TextInput
-              inputMode="numeric"
-              placeholder="+91 98765 43210"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              disabled={otpSent}
-            />
-          </Field>
-
-          {/* reCAPTCHA — always in DOM so verifier always has a container */}
-          <div className={`flex justify-center ${otpSent ? "hidden" : ""}`}>
-            <div id="recaptcha-container" />
-          </div>
-
-          {otpSent && (
-            <Field label="OTP">
-              <TextInput
+          {!otpSent ? (
+            <Field label={s.phone}>
+              <div className="flex gap-2">
+                <span className="flex min-h-[52px] items-center rounded-xl border border-line bg-white px-4 text-[16px] font-bold text-ink-soft">+91</span>
+                <Input
+                  type="tel"
+                  inputMode="numeric"
+                  autoComplete="tel-national"
+                  placeholder={s.phonePlaceholder}
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                />
+              </div>
+            </Field>
+          ) : (
+            <Field label={s.otp}>
+              <Input
                 inputMode="numeric"
-                placeholder="6 digit OTP"
+                autoComplete="one-time-code"
+                placeholder={s.otpPlaceholder}
                 value={otp}
-                onChange={(e) => setOtp(e.target.value)}
+                onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
                 maxLength={6}
+                className={otp ? "tracking-[0.4em]" : ""}
               />
             </Field>
           )}
 
-          <label className="flex items-center gap-3 text-sm font-bold text-slate-700">
-            <input type="checkbox" className="h-5 w-5 accent-leaf-600" defaultChecked />
-            Remember this device
-          </label>
-          <label className="flex items-center gap-3 text-sm font-bold text-slate-700">
-            <input type="checkbox" className="h-5 w-5 accent-leaf-600" />
-            <LockKeyhole size={17} /> Enable PIN lock
-          </label>
-
-          <ActionButton
-            onClick={otpSent ? handleVerifyOtp : handleSendOtp}
-            disabled={loading}
-          >
-            {loading ? "వేచి ఉండండి..." : otpSent ? "Verify OTP" : "Send OTP"}
-          </ActionButton>
-
-          {otpSent && (
-            <button
-              className="text-sm font-semibold text-leaf-600 underline"
-              onClick={() => {
-                setOtpSent(false);
-                setOtp("");
-                setError("");
-                resetVerifier();
-              }}
-            >
-              మొబైల్ నంబర్ మార్చండి
-            </button>
-          )}
+          {/* reCAPTCHA must stay in the DOM so the verifier always has a container */}
+          <div className={`flex justify-center ${otpSent ? "hidden" : ""}`}>
+            <div id="recaptcha-container" />
+          </div>
         </div>
+      </div>
+
+      <div className="grid gap-3">
+        <Button size="lg" block loading={loading} onClick={otpSent ? handleVerifyOtp : handleSendOtp}>
+          {loading ? s.wait : otpSent ? s.verify : s.sendOtp}
+        </Button>
+        {otpSent && (
+          <Button
+            variant="ghost"
+            block
+            onClick={() => {
+              setOtpSent(false);
+              setOtp("");
+              setError("");
+              resetVerifier();
+            }}
+          >
+            {s.changeNumber}
+          </Button>
+        )}
+        <p className="flex items-start gap-2 px-1 text-[13px] font-medium text-ink-muted">
+          <ShieldCheck size={16} className="mt-0.5 shrink-0" /> {s.privacy}
+        </p>
       </div>
     </main>
   );

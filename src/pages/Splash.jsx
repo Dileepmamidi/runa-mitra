@@ -1,26 +1,26 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
+import { useCopy } from "../i18n/useCopy";
+import { splashCopy } from "./Onboarding.copy";
 
 export function Splash() {
   const navigate = useNavigate();
-  const { t } = useApp();
+  const { user } = useApp();
+  const s = useCopy(splashCopy);
 
   useEffect(() => {
-    const timer = setTimeout(() => navigate("/language"), 900);
+    const chosen = localStorage.getItem("runa-language");
+    const next = user ? "/home" : chosen ? "/login" : "/language";
+    const timer = setTimeout(() => navigate(next, { replace: true }), 700);
     return () => clearTimeout(timer);
-  }, [navigate]);
+  }, [navigate, user]);
 
   return (
-    <main className="flex min-h-screen items-center justify-center px-6">
-      <div className="text-center">
-        <img src="/logo.svg" alt="Runa Mitra" className="mx-auto h-24 w-24 rounded-[24px] shadow-soft" />
-        <h1 className="mt-6 text-3xl font-black text-leaf-700">{t.appName}</h1>
-        <p className="mt-2 text-lg font-bold text-slate-700">{t.tagline}</p>
-        <div className="mx-auto mt-8 h-2 w-44 overflow-hidden rounded-full bg-leaf-100">
-          <div className="h-full w-2/3 animate-pulse rounded-full bg-leaf-600" />
-        </div>
-      </div>
+    <main className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-brand-700 to-brand-950 px-6 text-center text-white">
+      <img src="/logo.svg" alt="" className="h-24 w-24 rounded-[28px] shadow-lift ring-4 ring-white/10" />
+      <h1 className="mt-6 text-4xl font-extrabold tracking-tight">{s.name}</h1>
+      <p className="mt-2 max-w-xs text-[17px] font-medium text-white/80">{s.tagline}</p>
     </main>
   );
 }

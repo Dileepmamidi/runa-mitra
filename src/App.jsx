@@ -2,6 +2,8 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { AppFrame } from "./components/AppFrame";
 import { BorrowerFrame } from "./components/BorrowerFrame";
 import { AuthGuard } from "./components/AuthGuard";
+import { LoadingScreen } from "./components/LoadingScreen";
+import { NativeBridge } from "./components/NativeBridge";
 import { useApp } from "./context/AppContext";
 
 // Lender Pages
@@ -31,6 +33,7 @@ import { RepaymentExtension } from "./pages/RepaymentExtension";
 import { RiskAnalysis } from "./pages/RiskAnalysis";
 import { ScanOldNote } from "./pages/ScanOldNote";
 import { Settings } from "./pages/Settings";
+import { MoreMenu } from "./pages/MoreMenu";
 
 // Borrower Pages
 import { BorrowerHome } from "./pages/borrower/BorrowerHome";
@@ -40,6 +43,8 @@ import { BorrowerDocuments } from "./pages/borrower/BorrowerDocuments";
 import { BorrowerExtensionRequest } from "./pages/borrower/BorrowerExtensionRequest";
 import { BorrowerNotifications } from "./pages/borrower/BorrowerNotifications";
 import { BorrowerMakePayment } from "./pages/borrower/BorrowerMakePayment";
+import { BorrowerMore } from "./pages/borrower/BorrowerMore";
+import { BorrowerHelp } from "./pages/borrower/BorrowerHelp";
 
 // Public Pages
 import { LanguageSelection } from "./pages/LanguageSelection";
@@ -54,16 +59,13 @@ export default function App() {
 
   if (authLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-soil-50">
-        <div className="text-center">
-          <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-leaf-600 border-t-transparent" />
-          <p className="mt-4 font-bold text-slate-600">Loading...</p>
-        </div>
-      </div>
+      <LoadingScreen />
     );
   }
 
   return (
+    <>
+    <NativeBridge />
     <Routes>
       {/* Public routes — no login needed */}
       <Route path="/" element={<Splash />} />
@@ -104,6 +106,7 @@ export default function App() {
             <Route path="/backup" element={<BackupRestore />} />
             <Route path="/family-access" element={<FamilyAccess />} />
             <Route path="/profile" element={<Profile />} />
+            <Route path="/more" element={<MoreMenu />} />
             <Route path="*" element={<Navigate to="/home" replace />} />
           </Route>
         ) : userRole === "borrower" ? (
@@ -115,6 +118,8 @@ export default function App() {
             <Route path="/documents" element={<BorrowerDocuments />} />
             <Route path="/extensions/new" element={<BorrowerExtensionRequest />} />
             <Route path="/notifications" element={<BorrowerNotifications />} />
+            <Route path="/more" element={<BorrowerMore />} />
+            <Route path="/help" element={<BorrowerHelp />} />
             <Route path="*" element={<Navigate to="/home" replace />} />
           </Route>
         ) : (
@@ -122,5 +127,6 @@ export default function App() {
         )}
       </Route>
     </Routes>
+    </>
   );
 }

@@ -1,36 +1,4 @@
-export const labels = {
-  te: {
-    appName: "Runa Mitra",
-    tagline: "మీ రుణాల డిజిటల్ లెక్కలు",
-    home: "హోమ్",
-    borrowers: "అప్పుదారులు",
-    addLoan: "రుణం",
-    reminders: "గుర్తింపులు",
-    inbox: "ఇన్బాక్స్",
-    profile: "ప్రొఫైల్",
-    addBorrower: "అప్పుదారు జోడించండి",
-    recordPayment: "చెల్లింపు నమోదు",
-    totalLent: "ఇచ్చిన మొత్తం",
-    pending: "బాకీ",
-    collected: "వసూలు",
-    dueToday: "ఈరోజు గడువు",
-    overdue: "గడువు దాటినవి"
-  },
-  en: {
-    appName: "Runa Mitra",
-    tagline: "Smart Digital Loan Ledger for Village Lenders",
-    home: "Home",
-    borrowers: "Borrowers",
-    addLoan: "Add Loan",
-    reminders: "Reminders",
-    inbox: "Inbox",
-    profile: "Profile",
-    addBorrower: "Add Borrower",
-    recordPayment: "Record Payment",
-    totalLent: "Total Lent",
-    pending: "Pending",
-    collected: "Collected",
-    dueToday: "Due Today",
-    overdue: "Overdue"
-  }
-};
+// Kept for older imports: `t` from AppContext is the shared copy.
+import { commonCopy } from "../i18n/common.copy.js";
+
+export const labels = commonCopy;

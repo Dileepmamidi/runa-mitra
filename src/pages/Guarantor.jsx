@@ -1,22 +1,23 @@
-import { ActionButton } from "../components/ActionButton";
-import { Card } from "../components/Card";
-import { Field, TextArea, TextInput } from "../components/FormControls";
+import { useApp } from "../context/AppContext";
+import { useCopy } from "../i18n/useCopy";
+import { Card, Notice, NotAvailable, Screen, Section } from "../ui";
+import { guarantorCopy } from "./Guarantor.copy";
 
+// Honest placeholder: this feature is not built yet and saves nothing.
 export function Guarantor() {
+  const { t } = useApp();
+  const s = useCopy(guarantorCopy);
   return (
-    <div className="mx-auto max-w-2xl md:ml-56">
-      <h1 className="text-2xl font-black text-slate-950">Guarantor Details</h1>
-      <Card className="mt-4">
-        <div className="grid gap-4 md:grid-cols-2">
-          <Field label="Name"><TextInput /></Field>
-          <Field label="Mobile"><TextInput inputMode="numeric" /></Field>
-          <Field label="Relationship"><TextInput /></Field>
-          <Field label="Photo"><TextInput type="file" accept="image/*" /></Field>
-          <Field label="Address"><TextArea /></Field>
-          <Field label="Signature"><TextInput type="file" accept="image/*" /></Field>
-        </div>
-        <ActionButton className="mt-4 w-full">Save Guarantor</ActionButton>
-      </Card>
-    </div>
+    <Screen title={s.title} back="/more">
+      <NotAvailable title={t.notAvailable} text={t.notAvailableText} />
+      <Section title={s.planTitle}>
+        <Card>
+          <ul className="grid list-disc gap-2 pl-5 text-[15px] font-medium text-ink">
+            {s.points.map((point) => <li key={point}>{point}</li>)}
+          </ul>
+        </Card>
+      </Section>
+      <Notice tone="info">{s.today}</Notice>
+    </Screen>
   );
 }

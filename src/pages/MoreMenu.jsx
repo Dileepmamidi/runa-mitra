@@ -1,0 +1,80 @@
+import { useState } from "react";
+import {
+  ArrowLeftRight, BarChart3, Calculator, CalendarClock, Camera, Cloud, FileSignature, FolderOpen,
+  Gem, History, IdCard, LogOut, MessageCircle, ReceiptText, Settings as SettingsIcon, ShieldCheck, User, UsersRound
+} from "lucide-react";
+import { useApp } from "../context/AppContext";
+import { useCopy } from "../i18n/useCopy";
+import { saveUserProfile } from "../services/firebaseService";
+import { Badge, List, ListRow, Notice, Screen, Section, Segmented } from "../ui";
+import { moreMenuCopy } from "./MoreMenu.copy";
+
+export function MoreMenu() {
+  const { t, user, language, setLanguage, availableRoles, switchRole, logout } = useApp();
+  const s = useCopy(moreMenuCopy);
+  const [error, setError] = useState("");
+  const soon = <Badge tone="amber">{s.soon}</Badge>;
+
+  const changeLanguage = async (next) => {
+    setLanguage(next);
+    setError("");
+    try {
+      if (user) await saveUserProfile(user.uid, { preferredLanguage: next });
+    } catch {
+      setError(s.languageSaveError);
+    }
+  };
+
+  return (
+    <Screen title={s.title}>
+      <Section title={s.language}>
+        <Segmented
+          value={language}
+          onChange={changeLanguage}
+          options={[{ value: "te", label: "తెలుగు" }, { value: "en", label: "English" }]}
+        />
+        {error && <div className="mt-2"><Notice tone="warning">{error}</Notice></div>}
+      </Section>
+
+      <Section title={s.money}>
+        <List>
+          <ListRow icon={ReceiptText} title={s.recordPayment} to="/payments/new" />
+          <ListRow icon={Calculator} title={s.calculator} to="/calculator" />
+          <ListRow icon={CalendarClock} title={s.extensions} to="/extensions/new" trailing={soon} />
+        </List>
+      </Section>
+
+      <Section title={s.records}>
+        <List>
+          <ListRow icon={FileSignature} title={s.agreements} to="/agreements" />
+          <ListRow icon={FolderOpen} title={s.documents} to="/documents" />
+          <ListRow icon={Camera} title={s.scanNote} to="/scan-note" trailing={soon} />
+          <ListRow icon={UsersRound} title={s.guarantor} to="/guarantor" trailing={soon} />
+          <ListRow icon={Gem} title={s.collateral} to="/collateral" trailing={soon} />
+          <ListRow icon={IdCard} title={s.aadhaar} to="/aadhaar-verification" />
+        </List>
+      </Section>
+
+      <Section title={s.insights}>
+        <List>
+          <ListRow icon={BarChart3} title={s.analytics} to="/analytics" />
+          <ListRow icon={History} title={s.risk} to="/risk" />
+          <ListRow icon={MessageCircle} title={s.communication} to="/communication" />
+        </List>
+      </Section>
+
+      <Section title={s.account}>
+        <List>
+          <ListRow icon={User} title={s.profile} to="/profile" />
+          <ListRow icon={SettingsIcon} title={s.settings} to="/settings" />
+          <ListRow icon={Cloud} title={s.backup} to="/backup" trailing={soon} />
+          <ListRow icon={ShieldCheck} title={s.family} to="/family-access" trailing={soon} />
+          {availableRoles.includes("borrower") && (
+            <ListRow icon={ArrowLeftRight} title={t.switchToBorrower} onClick={() => switchRole("borrower")} />
+          )}
+          <ListRow icon={LogOut} title={t.logout} onClick={logout} chevron={false} />
+        </List>
+      </Section>
+    </Screen>
+  );
+}

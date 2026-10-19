@@ -1,98 +1,148 @@
-import { Link } from "react-router-dom";
-import { ArrowRight, Clock, FileText, AlertCircle } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { CalendarClock, FolderOpen, Landmark, MessageCircle, RefreshCw, Wallet } from "lucide-react";
 import { useApp } from "../../context/AppContext";
-import { currency } from "../../utils/loanMath";
-import { Card } from "../../components/Card";
-import { calculateLoan, countsAsPaid, paiseToRupees } from "../../utils/interestEngine";
-import { useEffect } from "react";
+import { useCopy } from "../../i18n/useCopy";
+import { countsAsPaid, formatPaise, rupeesToPaise } from "../../utils/interestEngine";
+import { ActionTile, Badge, Button, Card, EmptyState, IconButton, MoneyHero, Screen, Section, Stat } from "../../ui";
+import { dateKeyOf, dueText, openLoans, useBorrowerLoans } from "./borrowerData";
+import { borrowerSharedCopy } from "./BorrowerShared.copy";
+import { borrowerHomeCopy } from "./BorrowerHome.copy";
 
 export function BorrowerHome() {
-  const { loans, payments, refreshData, language, setLanguage } = useApp();
+  const { borrowers, payments, refreshData } = useApp();
+  const s = useCopy(borrowerHomeCopy);
+  const sh = useCopy(borrowerSharedCopy);
+  const items = useBorrowerLoans();
+  const [refreshing, setRefreshing] = useState(false);
 
+  const refresh = async () => {
+    setRefreshing(true);
+    try { await refreshData(); } finally { setRefreshing(false); }
+  };
+
+  // Fetch fresh records when the home screen opens.
   useEffect(() => {
     refreshData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const totalPrincipal = loans.reduce((sum, loan) => sum + Number(loan.principal || 0), 0);
-  // Amounts come from the interest engine; loans with unclear terms are left
-  // out of the total instead of being guessed.
-  const results = loans.map((loan) => ({ loan, calc: calculateLoan(loan, payments.filter((p) => p.loanId === loan.id)) }));
-  const totalBalance = results.reduce((sum, r) => sum + (r.calc.status === "ok" ? paiseToRupees(r.calc.outstandingPaise) : 0), 0);
-  const totalPaid = payments.filter(countsAsPaid).reduce((sum, p) => sum + Number(p.amount || 0), 0);
+  const summary = useMemo(() => {
+    const ok = items.filter((x) => x.calc.status === "ok");
+    const sum = (key) => ok.reduce((total, x) => total + (x.calc[key] || 0), 0);
+    const unclear = items.length - ok.length;
+    const dues = openLoans(items).map((x) => x.due).filter(Boolean).sort((a, b) => (a.date < b.date ? -1 : 1));
+    const latest = payments
+      .filter(countsAsPaid)
+      .map((p) => ({ date: dateKeyOf(p.paymentDate) || dateKeyOf(p.createdAt), paise: Number.isInteger(p.amountPaise) ? p.amountPaise : rupeesToPaise(p.amount) }))
+      .filter((p) => p.date && Number.isFinite(p.paise) && p.paise > 0)
+      .sort((a, b) => (a.date < b.date ? 1 : -1))[0];
+    return {
+      okCount: ok.length,
+      unclear,
+      outstanding: sum("outstandingPaise"),
+      principal: sum("principalPaise"),
+      interest: sum("interestAccruedPaise"),
+      paid: sum("totalPaidPaise"),
+      allSettled: ok.length > 0 && unclear === 0 && ok.every((x) => x.calc.settled),
+      nextDue: dues[0] || null,
+      latest
+    };
+  }, [items, payments]);
 
-  const activeLoans = results.filter((r) => r.calc.status !== "ok" || !r.calc.settled).map((r) => r.loan);
+  const name = borrowers[0]?.name || "";
+  const refreshButton = <IconButton icon={RefreshCw} label={s.refresh} onClick={refresh} className={refreshing ? "animate-spin" : ""} />;
+
+  if (items.length === 0) {
+    return (
+      <Screen title={s.greeting(name)} subtitle={s.subtitle} actions={refreshButton}>
+        <EmptyState
+          icon={Landmark}
+          title={s.emptyTitle}
+          text={s.emptyText}
+          action={<Button icon={RefreshCw} loading={refreshing} onClick={refresh} size="lg">{s.emptyAction}</Button>}
+        />
+        <Button variant="secondary" size="lg" block icon={MessageCircle} to="/help">{s.ask}</Button>
+      </Screen>
+    );
+  }
+
+  const caption = summary.okCount === 0
+    ? s.captionAllUnclear
+    : summary.unclear > 0
+      ? s.captionUnclear(summary.unclear)
+      : summary.allSettled ? s.captionSettled : s.captionOk;
+
+  const single = items.length === 1 ? items[0].loan : null;
+  const scrollToLoans = () => document.getElementById("my-loans")?.scrollIntoView({ behavior: "smooth", block: "start" });
 
   return (
-    <div className="mx-auto max-w-2xl">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-3xl font-black text-slate-950">సారాంశం (Overview)</h2>
-        <select 
-          className="bg-slate-100 text-slate-700 font-bold rounded-lg px-3 py-2 text-sm border-0 focus:ring-2 focus:ring-leaf-500"
-          value={language} 
-          onChange={(e) => setLanguage(e.target.value)}
-        >
-          <option value="te">తెలుగు</option>
-          <option value="en">English</option>
-        </select>
-      </div>
-      
-      <div className="grid gap-4 md:grid-cols-2 mb-6">
-        <Card className="bg-danger-50 border-danger-100">
-          <p className="text-lg font-bold text-danger-700">మొత్తం బకాయి (Total Pending)</p>
-          <p className="mt-2 text-4xl font-black text-danger-600">{currency(totalBalance)}</p>
-        </Card>
-        
-        <Card className="bg-leaf-50 border-leaf-100">
-          <p className="text-lg font-bold text-leaf-800">చెల్లించిన మొత్తం (Total Paid)</p>
-          <p className="mt-2 text-4xl font-black text-leaf-700">{currency(totalPaid)}</p>
-        </Card>
-      </div>
+    <Screen title={s.greeting(name)} subtitle={s.subtitle} actions={refreshButton}>
+      <MoneyHero
+        label={s.totalLabel}
+        value={summary.okCount === 0 ? s.totalUnknown : formatPaise(summary.outstanding)}
+        caption={caption}
+        tone={summary.okCount === 0 ? "ink" : "brand"}
+      />
 
-      <h3 className="text-xl font-black text-slate-900 mb-4 mt-8">మీ రుణాలు (Your Loans)</h3>
-      
-      {activeLoans.length === 0 ? (
-        <Card>
-          <p className="text-lg font-bold text-slate-500 text-center py-6">మీకు ప్రస్తుతం ఎటువంటి అప్పులు లేవు.</p>
-        </Card>
-      ) : (
-        <div className="grid gap-4">
-          {activeLoans.map(loan => {
-            const isOverdue = loan.dueDate && new Date(loan.dueDate) < new Date();
-            const statusColor = isOverdue ? "bg-danger-100 text-danger-800" : "bg-warning-100 text-warning-800";
-            
-            return (
-              <Card key={loan.id} className="relative overflow-hidden">
-                <div className="absolute right-0 top-0 rounded-bl-xl px-4 py-1 text-xs font-black uppercase tracking-wider shadow-sm bg-leaf-100 text-leaf-800">
-                  Active
-                </div>
-                
-                <p className="text-sm font-bold text-slate-500 mb-1">Loan taken on {loan.loanDate}</p>
-                <div className="flex items-baseline gap-2">
-                  <p className="text-3xl font-black text-slate-950">{currency(loan.principal)}</p>
-                  <p className="text-lg font-bold text-slate-500">@ {loan.interestRate}% {loan.interestType}</p>
-                </div>
-                
-                <div className={`mt-4 rounded-xl p-4 flex items-center gap-3 ${statusColor}`}>
-                  {isOverdue ? <AlertCircle size={24} /> : <Clock size={24} />}
-                  <div>
-                    <p className="font-bold text-base">Due Date: {loan.dueDate || "Not specified"}</p>
-                    <p className="text-sm">{isOverdue ? "Payment is overdue!" : "Upcoming payment"}</p>
-                  </div>
-                </div>
-                
-                <div className="mt-5 grid grid-cols-2 gap-3">
-                  <Link to={`/loans/${loan.id}`} className="flex items-center justify-center gap-2 rounded-xl bg-slate-100 py-4 font-black text-slate-700 hover:bg-slate-200">
-                    <FileText size={20} /> వివరాలు (Details)
-                  </Link>
-                  <Link to={`/extensions/new?loanId=${loan.id}`} className="flex items-center justify-center gap-2 rounded-xl bg-leaf-600 py-4 font-black text-white shadow-soft hover:bg-leaf-700">
-                     సమయం కోరండి (Request Time)
-                  </Link>
-                </div>
-              </Card>
-            );
-          })}
+      {summary.okCount > 0 && (
+        <div className="grid grid-cols-2 gap-3">
+          <Stat label={s.principal} value={formatPaise(summary.principal)} />
+          <Stat label={s.interest} value={formatPaise(summary.interest)} tone="amber" />
+          <Stat label={s.paid} value={formatPaise(summary.paid)} tone="brand" />
+          <Stat
+            label={s.nextDue}
+            value={summary.nextDue ? sh.date(summary.nextDue.date) : s.none}
+            hint={summary.nextDue ? dueText(sh, summary.nextDue) : undefined}
+            tone={summary.nextDue?.overdue ? "rose" : "ink"}
+          />
         </div>
       )}
-    </div>
+      <Stat
+        label={s.latest}
+        value={summary.latest ? formatPaise(summary.latest.paise) : s.none}
+        hint={summary.latest ? sh.date(summary.latest.date) : undefined}
+      />
+
+      <div className="grid grid-cols-2 gap-3">
+        {single
+          ? <ActionTile icon={Landmark} label={s.viewLoan} to={`/loans/${single.id}`} />
+          : <ActionTile icon={Landmark} label={s.viewLoan} onClick={scrollToLoans} />}
+        <ActionTile icon={Wallet} label={s.payments} to="/payments" />
+        <ActionTile icon={FolderOpen} label={s.documents} to="/documents" tone="ink" />
+        <ActionTile icon={CalendarClock} label={s.moreTime} to="/extensions/new" tone="amber" />
+      </div>
+
+      <div>
+        <Button variant="secondary" size="lg" block icon={MessageCircle} to="/help">{s.ask}</Button>
+        <p className="mt-2 px-1 text-[13px] font-medium text-ink-muted">{s.askHint}</p>
+      </div>
+
+      <Section title={s.loans}>
+        <div id="my-loans" className="grid scroll-mt-24 gap-3">
+          {items.map(({ loan, calc, due }) => (
+            <Card key={`${loan.lenderUid}_${loan.id}`} to={`/loans/${loan.id}`}>
+              <div className="flex items-start justify-between gap-3">
+                <p className="min-w-0 text-[17px] font-bold text-ink">{sh.loanFrom(loan.lenderName)}</p>
+                {calc.status !== "ok"
+                  ? <Badge tone="amber">{sh.needsClarification}</Badge>
+                  : calc.settled ? <Badge tone="brand">{sh.settled}</Badge> : null}
+              </div>
+              {calc.status === "ok" && !calc.settled && (
+                <>
+                  <p className="mt-2 text-[13px] font-semibold text-ink-muted">{s.owes}</p>
+                  <p className="tabular text-[30px] font-extrabold leading-tight text-ink">{formatPaise(calc.outstandingPaise)}</p>
+                </>
+              )}
+              {due && (
+                <p className={`mt-2 text-[15px] font-bold ${due.overdue ? "text-rose-600" : due.days <= 7 ? "text-amber-700" : "text-ink-soft"}`}>
+                  {dueText(sh, due)} · {sh.date(due.date)}
+                </p>
+              )}
+              <p className="mt-3 text-[15px] font-bold text-brand-700">{s.openLoan} →</p>
+            </Card>
+          ))}
+        </div>
+      </Section>
+    </Screen>
   );
 }

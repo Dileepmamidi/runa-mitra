@@ -1,54 +1,45 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ActionButton } from "../components/ActionButton";
-import { Card } from "../components/Card";
-import { Field, SelectInput, TextArea, TextInput } from "../components/FormControls";
+import { Save, Trash2 } from "lucide-react";
+import { borrowerName, borrowerOutstanding } from "../components/BorrowerCard";
 import { useApp } from "../context/AppContext";
+import { useCopy } from "../i18n/useCopy";
 import { updateUserRecord, uploadEvidence, deleteUserRecord, createBorrowerLink } from "../services/firebaseService";
+import { formatPaise } from "../utils/interestEngine";
+import { BottomAction, Button, Card, EmptyState, Notice, Screen, Section } from "../ui";
+import { BorrowerForm, emptyBorrowerForm } from "./AddBorrower";
+import { borrowerFormCopy } from "./AddBorrower.copy";
+import { editBorrowerCopy } from "./EditBorrower.copy";
 
 export function EditBorrower() {
   const { id } = useParams();
-  const { user, lender, borrowers, loans, refreshData } = useApp();
+  const { user, lender, borrowers, loans, payments, refreshData } = useApp();
+  const s = useCopy(editBorrowerCopy);
+  const f = useCopy(borrowerFormCopy);
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-
-  const [formData, setFormData] = useState({
-    name: "",
-    fatherName: "",
-    mobile: "",
-    whatsapp: "",
-    village: "",
-    occupation: "Farmer",
-    address: "",
-    nomineeName: "",
-    nomineeMobile: "",
-    guarantorName: "",
-    guarantorMobile: "",
-    familyContact: ""
-  });
-
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [formData, setFormData] = useState(emptyBorrowerForm);
   const [photoFile, setPhotoFile] = useState(null);
 
+  const borrower = borrowers.find((b) => b.id === id);
+
   useEffect(() => {
-    const borrower = borrowers.find(b => b.id === id);
-    if (borrower) {
-      setFormData({
-        name: borrower.name || "",
-        fatherName: borrower.fatherName || "",
-        mobile: borrower.mobile || "",
-        whatsapp: borrower.whatsapp || "",
-        village: borrower.village || "",
-        occupation: borrower.occupation || "Farmer",
-        address: borrower.address || "",
-        nomineeName: borrower.nomineeName || "",
-        nomineeMobile: borrower.nomineeMobile || "",
-        guarantorName: borrower.guarantorName || "",
-        guarantorMobile: borrower.guarantorMobile || "",
-        familyContact: borrower.familyContact || ""
-      });
-    }
-  }, [id, borrowers]);
+    if (!borrower) return;
+    const next = {};
+    for (const key of Object.keys(emptyBorrowerForm)) next[key] = borrower[key] || emptyBorrowerForm[key];
+    next.name = borrowerName(borrower);
+    setFormData(next);
+  }, [borrower]);
+
+  if (!borrower) {
+    return (
+      <Screen title={s.title} back="/borrowers">
+        <EmptyState title={s.notFound} />
+      </Screen>
+    );
+  }
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -57,56 +48,37 @@ export function EditBorrower() {
 
   const handleSave = async () => {
     setError("");
-    if (!formData.name || !formData.mobile) {
-      setError("Name and Mobile are required.");
-      return;
-    }
-    if (!user) {
-      setError("You must be logged in to edit a borrower.");
-      return;
-    }
-
+    if (!formData.name.trim() || !formData.mobile.trim()) return setError(f.errRequired);
+    if (!user) return setError(f.errLogin);
     try {
       setLoading(true);
-      let updates = { ...formData };
-
-      // 1. Upload photo if provided
-      if (photoFile) {
-        updates.photoUrl = await uploadEvidence(user.uid, photoFile);
-      }
-
-      // 2. Update borrower data
+      const updates = { ...formData, name: formData.name.trim() };
+      if (photoFile) updates.photoUrl = await uploadEvidence(user.uid, photoFile);
       await updateUserRecord(user.uid, "borrowers", id, updates);
-      
-      // Note: We sync the link here to heal any broken multi-lender links automatically.
-      if (formData.mobile) {
-        await createBorrowerLink(formData.mobile, user.uid, id, { lenderName: lender.name, borrowerName: formData.name });
+      // Re-sync the invitation so the name the borrower sees stays current.
+      if (formData.mobile && !borrower.linkedUid) {
+        await createBorrowerLink(formData.mobile, user.uid, id, { lenderName: lender.name, borrowerName: updates.name });
       }
-
       await refreshData();
       navigate(`/borrowers/${id}`);
     } catch (err) {
       console.error(err);
-      setError("Failed to update borrower. Check internet connection.");
+      setError(s.saveError);
     } finally {
       setLoading(false);
     }
   };
 
+  const askDelete = () => {
+    setError("");
+    const summary = borrowerOutstanding(id, loans, payments);
+    if (summary.outstandingPaise > 0) return setError(s.deleteBlocked(formatPaise(summary.outstandingPaise)));
+    if (summary.unclear > 0) return setError(s.deleteBlockedUnclear);
+    setConfirmDelete(true);
+  };
+
   const handleDelete = async () => {
     if (!user) return;
-    
-    // Check if borrower has active loans
-    const borrowerLoans = loans.filter(l => l.borrowerId === id);
-    const activeBalance = borrowerLoans.reduce((sum, l) => sum + l.balance, 0);
-    
-    if (activeBalance > 0) {
-      alert(`Cannot delete! This borrower still owes ${activeBalance}. Please clear their loans first.`);
-      return;
-    }
-    
-    if (!window.confirm("Are you sure you want to completely delete this borrower? This cannot be undone.")) return;
-    
     try {
       setLoading(true);
       await deleteUserRecord(user.uid, "borrowers", id);
@@ -114,99 +86,41 @@ export function EditBorrower() {
       navigate("/borrowers");
     } catch (err) {
       console.error(err);
-      setError("Failed to delete borrower.");
+      setError(s.deleteError);
+      setConfirmDelete(false);
       setLoading(false);
     }
   };
 
   return (
-    <div className="mx-auto max-w-2xl md:ml-56">
-      <h1 className="text-2xl font-black text-slate-950">అప్పుదారు సవరించండి (Edit Borrower)</h1>
-      
-      {error && (
-        <div className="mt-4 rounded-[6px] bg-red-50 p-3 text-sm font-bold text-red-600">
-          {error}
-        </div>
-      )}
+    <Screen title={s.title} subtitle={borrowerName(borrower)} back={`/borrowers/${id}`}>
+      <BorrowerForm formData={formData} onChange={handleChange} photoFile={photoFile} onPhoto={setPhotoFile} mobileLocked />
 
-      <Card className="mt-4">
-        <div className="grid gap-4 md:grid-cols-2">
-          <Field label="Name">
-            <TextInput name="name" value={formData.name} onChange={handleChange} placeholder="Borrower name" />
-          </Field>
-          <Field label="Father name">
-            <TextInput name="fatherName" value={formData.fatherName} onChange={handleChange} placeholder="Father name" />
-          </Field>
-          <Field label="Mobile (Cannot change login mobile)">
-            <TextInput name="mobile" value={formData.mobile} onChange={handleChange} inputMode="numeric" placeholder="Mobile number" readOnly className="bg-slate-50 cursor-not-allowed text-slate-500" />
-          </Field>
-          <Field label="WhatsApp">
-            <TextInput name="whatsapp" value={formData.whatsapp} onChange={handleChange} inputMode="numeric" placeholder="WhatsApp number" />
-          </Field>
-          <Field label="Village">
-            <TextInput name="village" value={formData.village} onChange={handleChange} placeholder="Village" />
-          </Field>
-          <Field label="Occupation">
-            <SelectInput name="occupation" value={formData.occupation} onChange={handleChange}>
-              <option>Farmer</option>
-              <option>Employee</option>
-              <option>Shopkeeper</option>
-              <option>Business</option>
-              <option>Daily wage</option>
-              <option>Other</option>
-            </SelectInput>
-          </Field>
-          <Field label="Address">
-            <TextArea name="address" value={formData.address} onChange={handleChange} placeholder="Street, landmark, village" />
-          </Field>
-          <Field label="Nominee name">
-            <TextInput name="nomineeName" value={formData.nomineeName} onChange={handleChange} placeholder="Nominee name" />
-          </Field>
-          <Field label="Nominee mobile">
-            <TextInput name="nomineeMobile" value={formData.nomineeMobile} onChange={handleChange} inputMode="numeric" placeholder="Nominee mobile number" />
-          </Field>
-          <Field label="Guarantor name optional">
-            <TextInput name="guarantorName" value={formData.guarantorName} onChange={handleChange} placeholder="Guarantor name" />
-          </Field>
-          <Field label="Guarantor mobile optional">
-            <TextInput name="guarantorMobile" value={formData.guarantorMobile} onChange={handleChange} inputMode="numeric" placeholder="Guarantor mobile number" />
-          </Field>
-          <Field label="Family contact mobile">
-            <TextInput name="familyContact" value={formData.familyContact} onChange={handleChange} inputMode="numeric" placeholder="Emergency family mobile" />
-          </Field>
-          <Field label="Update Photo (Opens Camera)">
-            <TextInput 
-              type="file" 
-              accept="image/*" 
-              capture="environment"
-              onChange={(e) => setPhotoFile(e.target.files[0])} 
-            />
-          </Field>
+      <Section title={s.deleteTitle}>
+        <Card className="grid gap-3">
+          <p className="text-[15px] font-medium text-ink-soft">{s.deleteHelp}</p>
+          {confirmDelete ? (
+            <Notice tone="warning" title={s.confirmTitle}>
+              <p>{s.confirmText(borrowerName(borrower))}</p>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <Button variant="secondary" onClick={() => setConfirmDelete(false)} disabled={loading}>{s.confirmNo}</Button>
+                <Button variant="danger" onClick={handleDelete} loading={loading}>{s.confirmYes}</Button>
+              </div>
+            </Notice>
+          ) : (
+            <Button variant="secondary" icon={Trash2} className="text-rose-600" onClick={askDelete} disabled={loading}>{s.delete}</Button>
+          )}
+        </Card>
+      </Section>
+
+      {error && <Notice tone="error">{error}</Notice>}
+
+      <BottomAction>
+        <div className="grid grid-cols-[1fr_2fr] gap-2">
+          <Button variant="secondary" size="lg" onClick={() => navigate(`/borrowers/${id}`)}>{s.cancel}</Button>
+          <Button size="lg" icon={Save} onClick={handleSave} loading={loading && !confirmDelete}>{loading ? s.saving : s.save}</Button>
         </div>
-        <div className="mt-5 flex gap-2 w-full">
-          <ActionButton 
-            className="flex-1 bg-red-50 text-red-600 hover:bg-red-100 border-0" 
-            onClick={handleDelete} 
-            disabled={loading}
-          >
-            Delete
-          </ActionButton>
-          <ActionButton 
-            variant="secondary"
-            className="flex-1"
-            onClick={() => navigate(`/borrowers/${id}`)}
-          >
-            Cancel
-          </ActionButton>
-          <ActionButton 
-            className="flex-1" 
-            onClick={handleSave} 
-            disabled={loading}
-          >
-            {loading ? "Saving..." : "Save"}
-          </ActionButton>
-        </div>
-      </Card>
-    </div>
+      </BottomAction>
+    </Screen>
   );
 }

@@ -25,6 +25,9 @@ const defaultLender = {
 
 export function AppProvider({ children }) {
   const [language, setLanguage] = useState(localStorage.getItem("runa-language") || "te");
+  useEffect(() => {
+    document.documentElement.lang = language;
+  }, [language]);
   const [appMode, setAppMode] = useState(localStorage.getItem("runa-mode") || "Basic");
   const [user, setUser] = useState(null);
   
@@ -110,6 +113,9 @@ export function AppProvider({ children }) {
   // Listen to Firebase Auth state
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
+      // Hold the loading screen until the role is known, so routing never
+      // sees a signed-in user without a role (that used to bounce to /login).
+      if (firebaseUser) setAuthLoading(true);
       setUser(firebaseUser);
       if (firebaseUser) {
         try {
@@ -179,7 +185,15 @@ export function AppProvider({ children }) {
 
   const refreshData = async () => {
     if (!user) return;
-    if (userRole === "lender") await loadLenderData(user.uid);
+    if (userRole === "lender") {
+      // Pick up profile edits (name, village, mode) without a reload.
+      const profile = await getUserProfile(user.uid).catch(() => null);
+      if (profile?.profile) {
+        setLender({ ...defaultLender, ...profile.profile });
+        setAvailableRoles((prev) => (prev.includes("lender") ? prev : ["lender", ...prev]));
+      }
+      await loadLenderData(user.uid);
+    }
     if (userRole === "borrower" && borrowerLink?.length > 0) await loadBorrowerData(borrowerLink, user.uid);
   };
 

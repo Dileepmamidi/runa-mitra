@@ -1,89 +1,117 @@
-import { Moon, Bell, Cloud, LockKeyhole, Languages, Users } from "lucide-react";
 import { useState } from "react";
-import { Card } from "../components/Card";
+import { Send } from "lucide-react";
 import { useApp } from "../context/AppContext";
-import { createBorrowerLink } from "../services/firebaseService";
+import { useCopy } from "../i18n/useCopy";
+import { createBorrowerLink, saveUserProfile } from "../services/firebaseService";
+import { Button, Card, Notice, Screen, Section, Segmented } from "../ui";
+import { settingsCopy } from "./Settings.copy";
+
+const MODES = ["Basic", "Regular", "Advanced"];
+const borrowerName = (b) => b?.personalInfo?.name || b?.name || "";
 
 export function Settings() {
-  const { user, lender, appMode, setAppMode, borrowers, language, setLanguage } = useApp();
-  const [syncing, setSyncing] = useState(false);
-  const [syncMessage, setSyncMessage] = useState("");
+  const { t, user, lender, appMode, setAppMode, borrowers, language, setLanguage } = useApp();
+  const s = useCopy(settingsCopy);
+  const [saveError, setSaveError] = useState("");
+  const [confirming, setConfirming] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [result, setResult] = useState(null); // { tone, text }
 
-  const items = [
-    ["Notifications", Bell],
-    ["Dark mode", Moon],
-    ["PIN lock", LockKeyhole],
-    ["Backup settings", Cloud]
-  ];
+  const mode = appMode === "Simple" ? "Basic" : appMode;
+  // Borrowers who already accepted are skipped, so their accepted invitation
+  // is never reset to "pending".
+  const toInvite = borrowers.filter((b) => b.mobile && !b.linkedUid);
 
-  const handleSyncLinks = async () => {
-    setSyncing(true);
-    setSyncMessage("");
+  const saveProfile = async (fields) => {
+    setSaveError("");
+    try {
+      if (user) await saveUserProfile(user.uid, fields);
+    } catch {
+      setSaveError(s.saveError);
+    }
+  };
+
+  const changeLanguage = (next) => {
+    setLanguage(next);
+    saveProfile({ preferredLanguage: next });
+  };
+
+  const changeMode = (next) => {
+    setAppMode(next);
+    saveProfile({ appMode: next });
+  };
+
+  const sendInvites = async () => {
+    setConfirming(false);
+    setResult(null);
+    if (!user) return;
+    if (toInvite.length === 0) {
+      setResult({ tone: "info", text: s.invitesNone });
+      return;
+    }
+    setSending(true);
     try {
       let count = 0;
-      for (const b of borrowers) {
-        if (b.mobile) {
-          await createBorrowerLink(b.mobile, user.uid, b.id, { lenderName: lender.name, borrowerName: b.name });
-          count++;
-        }
+      for (const b of toInvite) {
+        await createBorrowerLink(b.mobile, user.uid, b.id, { lenderName: lender.name, borrowerName: borrowerName(b) });
+        count += 1;
       }
-      setSyncMessage(`Successfully synced ${count} borrowers for mobile app access!`);
+      setResult({ tone: "success", text: s.invitesDone(count) });
     } catch (err) {
       console.error(err);
-      setSyncMessage("Error syncing borrowers.");
+      setResult({ tone: "error", text: s.invitesError });
     } finally {
-      setSyncing(false);
+      setSending(false);
     }
   };
 
   return (
-    <div className="mx-auto max-w-2xl md:ml-56">
-      <h1 className="text-2xl font-black text-slate-950">Settings</h1>
-      
-      <Card className="mt-4">
-        <p className="mb-3 text-sm font-bold text-slate-500">App mode</p>
-        <div className="grid grid-cols-3 gap-2">
-          {["Simple", "Regular", "Advanced"].map((mode) => (
-            <button key={mode} onClick={() => setAppMode(mode)} className={`min-h-11 rounded-[8px] text-sm font-black ${appMode === mode ? "bg-leaf-600 text-white" : "bg-slate-50 text-slate-700"}`}>{mode}</button>
-          ))}
-        </div>
-      </Card>
-      
-      <Card className="mt-4">
-        <p className="mb-3 text-sm font-bold text-slate-500">Language (భాష)</p>
-        <div className="grid grid-cols-2 gap-2">
-          <button onClick={() => setLanguage("en")} className={`min-h-11 rounded-[8px] text-sm font-black ${language === "en" ? "bg-leaf-600 text-white" : "bg-slate-50 text-slate-700"}`}>English</button>
-          <button onClick={() => setLanguage("te")} className={`min-h-11 rounded-[8px] text-sm font-black ${language === "te" ? "bg-leaf-600 text-white" : "bg-slate-50 text-slate-700"}`}>తెలుగు</button>
-        </div>
-      </Card>
+    <Screen title={s.title} back="/more">
+      <Section title={s.language}>
+        <Segmented
+          value={language}
+          onChange={changeLanguage}
+          options={[{ value: "te", label: "తెలుగు" }, { value: "en", label: "English" }]}
+        />
+      </Section>
 
-      <Card className="mt-4 border border-leaf-100 bg-leaf-50">
-        <div className="flex items-start gap-4">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-leaf-200 text-leaf-700">
-            <Users size={24} />
-          </div>
-          <div className="flex-1">
-            <h2 className="text-lg font-black text-leaf-900">Borrower App Access</h2>
-            <p className="mt-1 text-sm font-semibold text-slate-700">
-              If you added borrowers before the Borrower App feature was released, click here to grant them access so they can log in.
-            </p>
-            {syncMessage && <p className="mt-2 text-sm font-bold text-leaf-700">{syncMessage}</p>}
-            <button 
-              onClick={handleSyncLinks}
-              disabled={syncing}
-              className="mt-4 rounded-[8px] bg-leaf-600 px-4 py-2 font-bold text-white shadow-soft disabled:opacity-50"
-            >
-              {syncing ? "Syncing..." : "Grant Access to Existing Borrowers"}
-            </button>
-          </div>
-        </div>
-      </Card>
+      <Section title={s.detail}>
+        <Segmented value={mode} onChange={changeMode} options={MODES.map((m) => ({ value: m, label: s.modes[m] }))} />
+        <Card className="mt-3">
+          <p className="text-[15px] font-bold text-ink">{s.modes[mode] || mode}</p>
+          <p className="mt-1 text-[15px] font-medium text-ink-soft">{s.modeText[mode] || ""}</p>
+          <p className="mt-3 text-[13px] font-medium text-ink-muted">{s.detailHint}</p>
+        </Card>
+      </Section>
 
-      <div className="mt-4 grid gap-3">
-        {items.map(([label, Icon]) => (
-          <Card key={label}><div className="flex items-center justify-between"><div className="flex items-center gap-3"><Icon size={19} className="text-leaf-700" /><b>{label}</b></div><input type="checkbox" className="h-5 w-5 accent-leaf-600" /></div></Card>
-        ))}
-      </div>
-    </div>
+      {saveError && <Notice tone="warning">{saveError}</Notice>}
+
+      <Section title={s.invitesTitle}>
+        <Card>
+          <p className="text-[15px] font-medium text-ink-soft">{s.invitesText}</p>
+          <div className="mt-4 grid gap-3">
+            {result && <Notice tone={result.tone}>{result.text}</Notice>}
+            {confirming ? (
+              <>
+                <p className="text-[16px] font-bold text-ink">{s.invitesConfirm(toInvite.length)}</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <Button variant="secondary" onClick={() => setConfirming(false)}>{t.cancel}</Button>
+                  <Button icon={Send} onClick={sendInvites}>{t.yes}</Button>
+                </div>
+              </>
+            ) : (
+              <Button
+                icon={Send}
+                block
+                loading={sending}
+                onClick={() => (toInvite.length ? setConfirming(true) : sendInvites())}
+              >
+                {sending ? s.invitesSending : s.invitesButton}
+              </Button>
+            )}
+          </div>
+        </Card>
+      </Section>
+    </Screen>
   );
 }

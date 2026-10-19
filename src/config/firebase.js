@@ -1,7 +1,7 @@
 import { initializeApp } from "firebase/app";
-import { getAuth, RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
-import { enableIndexedDbPersistence, getFirestore } from "firebase/firestore";
-import { getStorage } from "firebase/storage";
+import { connectAuthEmulator, getAuth, RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
+import { connectFirestoreEmulator, enableIndexedDbPersistence, getFirestore } from "firebase/firestore";
+import { connectStorageEmulator, getStorage } from "firebase/storage";
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "demo-api-key",
@@ -16,6 +16,15 @@ export const firebaseApp = initializeApp(firebaseConfig);
 export const auth = getAuth(firebaseApp);
 export const db = getFirestore(firebaseApp);
 export const storage = getStorage(firebaseApp);
+
+// Local development against the Firebase emulators (npm run dev:emulator).
+// Never enabled in production builds unless VITE_USE_EMULATORS is set.
+export const usingEmulators = import.meta.env.VITE_USE_EMULATORS === "true";
+if (usingEmulators) {
+  connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });
+  connectFirestoreEmulator(db, "127.0.0.1", 8080);
+  connectStorageEmulator(storage, "127.0.0.1", 9199);
+}
 
 enableIndexedDbPersistence(db).catch(() => {
   // Persistence can fail in private mode or multi-tab sessions; app still works online.

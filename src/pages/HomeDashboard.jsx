@@ -1,150 +1,158 @@
-import { Link } from "react-router-dom";
-import { AlertTriangle, CalendarClock, IndianRupee, Plus, ReceiptText, TrendingUp, UserPlus } from "lucide-react";
-import { Card, SectionTitle } from "../components/Card";
+import { useMemo } from "react";
+import { AlertTriangle, Calculator, CalendarClock, Inbox, ReceiptText, UserPlus } from "lucide-react";
 import { ChartBars } from "../components/ChartBars";
-import { MetricCard } from "../components/MetricCard";
-import { StatusBadge } from "../components/StatusBadge";
 import { useApp } from "../context/AppContext";
-import { currency } from "../utils/loanMath";
-import { calculateLoan, countsAsPaid, paiseToRupees } from "../utils/interestEngine";
+import { useCopy } from "../i18n/useCopy";
+import { calculateLoan, countsAsPaid, formatPaise, rupeesToPaise, toDateKey } from "../utils/interestEngine";
+import { ActionTile, Avatar, Badge, Button, Card, EmptyState, List, ListRow, MoneyHero, Section, Stat } from "../ui";
+import { dashboardCopy } from "./HomeDashboard.copy";
+
+const borrowerName = (b) => b?.personalInfo?.name || b?.name || "";
 
 export function HomeDashboard() {
-  const { t, borrowers, payments, loans } = useApp();
+  const { borrowers, payments, loans, appMode, language } = useApp();
+  const s = useCopy(dashboardCopy);
+  const today = toDateKey(new Date());
 
-  // Calculate real metrics from Firestore data
-  const totalLent = loans.reduce((sum, l) => sum + (l.principal || 0), 0);
-  // Outstanding (principal + unpaid interest) from the interest engine. Loans
-  // with unclear terms fall back to their recorded principal balance.
-  const outstandingOf = (loan) => {
-    const calc = calculateLoan(loan, payments.filter((p) => p.loanId === loan.id));
-    return calc.status === "ok" ? paiseToRupees(calc.outstandingPaise) : Number(loan.balance || 0);
-  };
-  const totalPending = loans.reduce((sum, l) => sum + outstandingOf(l), 0);
-  const totalCollected = payments.filter(countsAsPaid).reduce((sum, p) => sum + (p.amount || 0), 0);
+  // Every figure comes from the interest engine. Loans whose terms are
+  // incomplete are counted at their recorded principal balance and flagged.
+  const summary = useMemo(() => {
+    let outstanding = 0;
+    let lent = 0;
+    let principalBack = 0;
+    let interestIn = 0;
+    let unclear = 0;
+    let active = 0;
+    const attention = [];
 
-  const today = new Date().toISOString().split("T")[0];
-  const dueToday = loans.filter(l => l.dueDate === today && l.status !== "closed").length;
-  const overdue = loans.filter(l => l.dueDate && l.dueDate < today && l.status !== "closed").length;
+    for (const loan of loans) {
+      const calc = calculateLoan(loan, payments.filter((p) => p.loanId === loan.id), today);
+      lent += rupeesToPaise(loan.principal) || 0;
+      if (calc.status === "ok") {
+        outstanding += calc.outstandingPaise;
+        principalBack += calc.principalPaidPaise;
+        interestIn += calc.interestPaidPaise;
+        if (!calc.settled) active += 1;
+        if (!calc.settled && loan.dueDate && loan.dueDate <= today) {
+          attention.push({ loan, amount: calc.outstandingPaise, overdue: loan.dueDate < today });
+        }
+      } else {
+        unclear += 1;
+        active += 1;
+        outstanding += rupeesToPaise(loan.balance) || 0;
+      }
+    }
+    attention.sort((a, b) => (a.loan.dueDate < b.loan.dueDate ? -1 : 1));
+    const collected = payments.filter(countsAsPaid).reduce((sum, p) => sum + (rupeesToPaise(p.amount) || 0), 0);
+    return { outstanding, lent, principalBack, interestIn, unclear, active, attention, collected };
+  }, [loans, payments, today]);
 
-  // Monthly interest estimate (sum of active loan monthly interest)
-  const monthlyInterest = loans
-    .filter(l => l.status !== "closed")
-    .reduce((sum, l) => {
-      if (l.interestType === "flat") return sum + ((l.principal || 0) * (l.interestRate || 0)) / 100;
-      return sum + ((l.balance || 0) * (l.interestRate || 0)) / 100;
-    }, 0);
+  const chart = useMemo(() => {
+    const locale = language === "te" ? "te-IN" : "en-IN";
+    return Array.from({ length: 6 }, (_, i) => {
+      const d = new Date();
+      d.setDate(1);
+      d.setMonth(d.getMonth() - (5 - i));
+      const month = d.toISOString().slice(0, 7);
+      const paise = payments
+        .filter(countsAsPaid)
+        .filter((p) => (toDateKey(p.paymentDate) || toDateKey(p.createdAt) || "").startsWith(month))
+        .reduce((sum, p) => sum + (rupeesToPaise(p.amount) || 0), 0);
+      return { label: d.toLocaleString(locale, { month: "short" }), value: paise, display: formatPaise(paise) };
+    });
+  }, [payments, language]);
 
-  // Last 6 months chart data
-  const monthlyChart = Array.from({ length: 6 }, (_, i) => {
-    const d = new Date();
-    d.setMonth(d.getMonth() - (5 - i));
-    const monthStr = d.toISOString().slice(0, 7); // "YYYY-MM"
-    const label = d.toLocaleString("default", { month: "short" });
-    const amount = payments
-      .filter(p => (p.paymentDate || p.createdAt?.toDate?.()?.toISOString() || "").startsWith(monthStr))
-      .reduce((sum, p) => sum + (p.amount || 0), 0);
-    return { label, amount };
-  });
+  const nameOf = (id) => borrowerName(borrowers.find((b) => b.id === id)) || s.unknown;
+  const dueToday = summary.attention.filter((a) => !a.overdue).length;
+  const overdue = summary.attention.filter((a) => a.overdue).length;
+  const recent = payments.slice(0, 5);
+
+  if (borrowers.length === 0) {
+    return (
+      <div className="mx-auto grid max-w-xl grid-cols-1 gap-4">
+        <EmptyState
+          icon={UserPlus}
+          title={s.noBorrowersTitle}
+          text={s.noBorrowersText}
+          action={<Button icon={UserPlus} to="/borrowers/new">{s.addBorrower}</Button>}
+        />
+      </div>
+    );
+  }
 
   return (
-    <div className="mx-auto max-w-3xl md:ml-56">
-      <section className="rounded-[8px] bg-leaf-600 p-5 text-white shadow-soft">
-        <p className="text-sm font-bold text-leaf-100">Runa Mitra</p>
-        <h1 className="mt-1 text-2xl font-black">మీ రుణాల డిజిటల్ లెక్కలు</h1>
-        <p className="mt-2 text-sm font-semibold text-leaf-50">
-          Weak internet ఉన్నా records phone లో ఉంటాయి, online వచ్చినప్పుడు sync అవుతాయి.
-        </p>
-      </section>
+    <div className="mx-auto grid max-w-xl grid-cols-1 gap-5">
+      <MoneyHero
+        label={s.outstanding}
+        value={formatPaise(summary.outstanding)}
+        caption={summary.unclear ? s.clarifyCaption(summary.unclear) : s.outstandingCaption(summary.active)}
+      />
 
-      <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-3">
-        <MetricCard icon={IndianRupee} label={t.totalLent} value={currency(totalLent)} />
-        <MetricCard icon={AlertTriangle} label={t.pending} value={currency(totalPending)} tone="red" />
-        <MetricCard icon={ReceiptText} label={t.collected} value={currency(totalCollected)} tone="soil" />
-        <MetricCard icon={TrendingUp} label="Monthly interest" value={currency(monthlyInterest)} />
-        <MetricCard icon={CalendarClock} label={t.dueToday} value={String(dueToday)} tone="yellow" />
-        <MetricCard icon={AlertTriangle} label={t.overdue} value={String(overdue)} tone="red" />
+      <div className="grid grid-cols-2 gap-3">
+        <Stat label={s.dueToday} value={dueToday} icon={CalendarClock} tone={dueToday ? "amber" : "ink"} />
+        <Stat label={s.overdue} value={overdue} icon={AlertTriangle} tone={overdue ? "rose" : "ink"} />
+        <Stat label={s.lent} value={formatPaise(summary.lent)} />
+        <Stat label={s.principalBack} value={formatPaise(summary.principalBack)} tone="brand" />
+        <Stat label={s.interestIn} value={formatPaise(summary.interestIn)} tone="brand" />
+        <Stat label={s.collected} value={formatPaise(summary.collected)} />
       </div>
 
-      <div className="mt-4 grid grid-cols-3 gap-3">
-        <Link
-          to="/borrowers/new"
-          className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[8px] bg-leaf-600 px-2 text-sm font-bold text-white shadow-soft active:bg-leaf-700"
-        >
-          <UserPlus size={18} /> Add
-        </Link>
-        <Link
-          to="/loans/new"
-          className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[8px] bg-leaf-600 px-2 text-sm font-bold text-white shadow-soft active:bg-leaf-700"
-        >
-          <Plus size={18} /> Loan
-        </Link>
-        <Link
-          to="/payments/new"
-          className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[8px] bg-white px-2 text-sm font-bold text-leaf-700 shadow-soft ring-1 ring-leaf-100"
-        >
-          <ReceiptText size={18} /> Pay
-        </Link>
+      <div className="grid grid-cols-2 gap-3">
+        <ActionTile icon={ReceiptText} label={s.recordPayment} to="/payments/new" />
+        <ActionTile icon={UserPlus} label={s.addBorrower} to="/borrowers/new" />
+        <ActionTile icon={Calculator} label={s.calculator} to="/calculator" tone="ink" />
+        <ActionTile icon={Inbox} label={s.inbox} to="/inbox" tone="amber" />
       </div>
 
-      <Card className="mt-4">
-        <SectionTitle title="Monthly collections" />
-        {monthlyChart.every(m => m.amount === 0) ? (
-          <p className="py-4 text-center text-sm text-slate-400">No payments recorded yet</p>
+      <Section title={s.attention}>
+        {summary.attention.length === 0 ? (
+          <Card><p className="text-[15px] font-medium text-ink-muted">{s.attentionEmpty}</p></Card>
         ) : (
-          <ChartBars data={monthlyChart} />
-        )}
-      </Card>
-
-      <Card className="mt-4">
-        <SectionTitle title="Upcoming due payments" />
-        {borrowers.length === 0 ? (
-          <p className="py-4 text-center text-sm text-slate-400">
-            No borrowers yet.{" "}
-            <Link to="/borrowers/new" className="font-bold text-leaf-600 underline">
-              Add your first borrower
-            </Link>
-          </p>
-        ) : (
-          <div className="grid gap-3">
-            {borrowers
-              .map(borrower => {
-                const borrowerLoans = loans.filter(l => l.borrowerId === borrower.id);
-                const totalBalance = borrowerLoans.reduce((sum, l) => sum + outstandingOf(l), 0);
-                return { ...borrower, totalBalance };
-              })
-              .filter(b => b.totalBalance > 0)
-              .map((borrower) => (
-              <div key={borrower.id} className="flex items-center justify-between gap-3 rounded-[8px] bg-slate-50 p-3">
-                <div>
-                  <p className="font-black text-slate-950">{borrower.personalInfo?.name || borrower.name}</p>
-                  <p className="text-sm font-semibold text-slate-500">{borrower.dueDate || "—"}</p>
-                </div>
-                <div className="text-right">
-                  <p className="font-black text-slate-950">{currency(borrower.totalBalance)}</p>
-                  <StatusBadge status={borrower.status || "active"} />
-                </div>
-              </div>
+          <List>
+            {summary.attention.slice(0, 6).map(({ loan, amount, overdue: late }) => (
+              <ListRow
+                key={loan.id}
+                to={`/loans/${loan.id}`}
+                avatar={<Avatar name={nameOf(loan.borrowerId)} />}
+                title={nameOf(loan.borrowerId)}
+                subtitle={late ? s.overdueSince(loan.dueDate) : s.dueOn(loan.dueDate)}
+                trailing={
+                  <span className={`tabular text-[16px] font-extrabold ${late ? "text-rose-600" : "text-amber-700"}`}>{formatPaise(amount)}</span>
+                }
+              />
             ))}
-          </div>
+          </List>
         )}
-      </Card>
+      </Section>
 
-      <Card className="mt-4">
-        <SectionTitle title="Recent payments" />
-        {payments.length === 0 ? (
-          <p className="py-4 text-center text-sm text-slate-400">No payments recorded yet</p>
+      {appMode !== "Basic" && (
+        <Section title={s.collections}>
+          <Card><ChartBars data={chart} /></Card>
+        </Section>
+      )}
+
+      <Section title={s.recent}>
+        {recent.length === 0 ? (
+          <Card><p className="text-[15px] font-medium text-ink-muted">{s.noPayments}</p></Card>
         ) : (
-          payments.slice(0, 5).map((payment) => (
-            <div key={payment.id} className="flex items-center justify-between border-b border-slate-100 py-3 last:border-0">
-              <div>
-                <p className="font-bold text-slate-950">{payment.borrowerName || "—"}</p>
-                <p className="text-sm text-slate-500">{payment.method} · {payment.paymentType}</p>
-              </div>
-              <p className="font-black text-leaf-700">{currency(payment.amount || 0)}</p>
-            </div>
-          ))
+          <List>
+            {recent.map((p) => (
+              <ListRow
+                key={p.id}
+                avatar={<Avatar name={nameOf(p.borrowerId)} size={40} />}
+                title={nameOf(p.borrowerId)}
+                subtitle={`${toDateKey(p.paymentDate) || ""} · ${s.methods[p.method] || p.method || ""}`}
+                trailing={
+                  <span className="flex flex-col items-end gap-1">
+                    <span className="tabular text-[16px] font-extrabold text-brand-700">{formatPaise(rupeesToPaise(p.amount) || 0)}</span>
+                    {p.status === "pending_verification" && <Badge tone="amber">{s.pendingApproval}</Badge>}
+                  </span>
+                }
+              />
+            ))}
+          </List>
         )}
-      </Card>
+      </Section>
     </div>
   );
 }

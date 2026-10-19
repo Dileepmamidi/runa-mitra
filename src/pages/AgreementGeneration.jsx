@@ -1,212 +1,214 @@
-import { useState, useRef } from "react";
-import { FileSignature, Printer } from "lucide-react";
-import { ActionButton } from "../components/ActionButton";
-import { Card, SectionTitle } from "../components/Card";
-import { Field, SelectInput, TextInput } from "../components/FormControls";
+import { useEffect, useMemo, useState } from "react";
+import { FileSignature, PenLine, Printer } from "lucide-react";
 import { useApp } from "../context/AppContext";
+import { useCopy } from "../i18n/useCopy";
 import { addUserRecord, uploadEvidence } from "../services/firebaseService";
+import { formatPaise, rupeesToPaise, termsFromLoan, toDateKey } from "../utils/interestEngine";
+import { Button, Card, Field, FilePicker, Input, List, ListRow, Notice, Screen, Section, Segmented, Select } from "../ui";
+import { agreementCopy, agreementPaperCopy } from "./AgreementGeneration.copy";
+
+const borrowerName = (b) => b?.personalInfo?.name || b?.name || "";
+const loanAmount = (loan) => formatPaise(rupeesToPaise(loan?.principal) || loan?.terms?.principalPaise || 0);
+
+// Object URL for a chosen signature photo, released when it changes.
+function usePreview(file) {
+  const [url, setUrl] = useState("");
+  useEffect(() => {
+    if (!file) return setUrl("");
+    const next = URL.createObjectURL(file);
+    setUrl(next);
+    return () => URL.revokeObjectURL(next);
+  }, [file]);
+  return url;
+}
+
+function SignatureBox({ src, label, name }) {
+  return (
+    <div className="text-center">
+      <div className="mb-2 flex h-24 items-end justify-center border-b-2 border-black pb-2">
+        {src && <img src={src} alt="" className="max-h-20 object-contain" />}
+      </div>
+      <p className="font-bold">{label}</p>
+      {name && <p className="text-sm">{name}</p>}
+    </div>
+  );
+}
 
 export function AgreementGeneration() {
-  const { user, borrowers, loans, refreshData } = useApp();
-  
+  const { user, lender, borrowers, loans, agreements, refreshData } = useApp();
+  const s = useCopy(agreementCopy);
+
   const [borrowerId, setBorrowerId] = useState("");
   const [loanId, setLoanId] = useState("");
-  const [language, setLanguage] = useState("te");
+  const [paperLanguage, setPaperLanguage] = useState("te");
   const [witnessName, setWitnessName] = useState("");
-  
   const [borrowerSignFile, setBorrowerSignFile] = useState(null);
   const [lenderSignFile, setLenderSignFile] = useState(null);
   const [witnessSignFile, setWitnessSignFile] = useState(null);
-  
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  
-  // Printable area reference
-  const printRef = useRef(null);
 
-  const selectedBorrower = borrowers.find(b => b.id === borrowerId);
-  const selectedLoan = loans.find(l => l.id === loanId);
-  const borrowerLoans = loans.filter(l => l.borrowerId === borrowerId);
+  const borrowerSign = usePreview(borrowerSignFile);
+  const lenderSign = usePreview(lenderSignFile);
+  const witnessSign = usePreview(witnessSignFile);
+
+  const selectedBorrower = borrowers.find((b) => b.id === borrowerId);
+  const selectedLoan = loans.find((l) => l.id === loanId);
+  const borrowerLoans = loans.filter((l) => l.borrowerId === borrowerId);
+  const paper = agreementPaperCopy[paperLanguage];
+
+  const paperText = useMemo(() => {
+    if (!selectedBorrower || !selectedLoan) return null;
+    const terms = termsFromLoan(selectedLoan) || {};
+    const rate = Number.isFinite(terms.ratePercent) ? paper.rate(terms.ratePercent, terms.rateUnit) : "—";
+    const fields = {
+      date: new Date().toLocaleDateString(paper.dateFormat),
+      borrower: borrowerName(selectedBorrower),
+      village: selectedBorrower.personalInfo?.village || selectedBorrower.village || "",
+      father: selectedBorrower.personalInfo?.fatherName || selectedBorrower.fatherName || "",
+      lender: lender?.name || "",
+      amount: loanAmount(selectedLoan),
+      rate,
+      method: paper.methods[terms.method] || paper.methodUnknown,
+      start: toDateKey(terms.startDate) || toDateKey(selectedLoan.loanDate) || "",
+      due: toDateKey(selectedLoan.dueDate) || "",
+      witness: witnessName.trim()
+    };
+    return { body: paper.body(fields), repay: paper.repay(fields) };
+  }, [selectedBorrower, selectedLoan, paper, lender, witnessName]);
 
   const handleGenerate = async () => {
     setError("");
     setSuccess("");
-    if (!user) return setError("Must be logged in.");
-    if (!borrowerId || !loanId) return setError("Please select a borrower and a loan.");
-    
+    if (!user) return;
+    if (!borrowerId || !loanId) return setError(s.needSelection);
     try {
       setLoading(true);
-      
-      let borrowerSignUrl = "";
-      let lenderSignUrl = "";
-      
-      if (borrowerSignFile) {
-        borrowerSignUrl = await uploadEvidence(user.uid, borrowerSignFile, ["agreements", loanId, "borrower"]);
-      }
-      
-      if (lenderSignFile) {
-        lenderSignUrl = await uploadEvidence(user.uid, lenderSignFile, ["agreements", loanId, "lender"]);
-      }
-
-      let witnessSignUrl = "";
-      if (witnessSignFile) {
-        witnessSignUrl = await uploadEvidence(user.uid, witnessSignFile, ["agreements", loanId, "witness"]);
-      }
-
-      const agreementData = {
+      const borrowerSignUrl = borrowerSignFile ? await uploadEvidence(user.uid, borrowerSignFile, ["agreements", loanId, "borrower"]) : "";
+      const lenderSignUrl = lenderSignFile ? await uploadEvidence(user.uid, lenderSignFile, ["agreements", loanId, "lender"]) : "";
+      const witnessSignUrl = witnessSignFile ? await uploadEvidence(user.uid, witnessSignFile, ["agreements", loanId, "witness"]) : "";
+      await addUserRecord(user.uid, "agreements", {
         borrowerId,
         loanId,
-        language,
+        language: paperLanguage,
         witnessName,
         borrowerSignUrl,
         lenderSignUrl,
         witnessSignUrl,
-        generatedAt: new Date().toISOString(),
-      };
-
-      await addUserRecord(user.uid, "agreements", agreementData);
-      setSuccess("Agreement securely saved to database!");
+        generatedAt: new Date().toISOString()
+      });
+      setSuccess(s.saved);
       await refreshData();
-      
-      // Trigger browser print
-      setTimeout(() => {
-        window.print();
-      }, 500);
-
+      setTimeout(() => window.print(), 500);
     } catch (err) {
       console.error(err);
-      setError("Failed to generate and save agreement.");
+      setError(s.error);
     } finally {
       setLoading(false);
     }
   };
 
+  const nameOf = (id) => borrowerName(borrowers.find((b) => b.id === id)) || s.unknown;
+  const saved = [...agreements].sort((a, b) => String(b.generatedAt || "").localeCompare(String(a.generatedAt || "")));
+
   return (
-    <div className="mx-auto max-w-3xl md:ml-56">
-      {/* Hide this entire wrapper when printing */}
+    <>
       <div className="print:hidden">
-        <h1 className="text-2xl font-black text-slate-950">Agreement Generation</h1>
-        
-        {error && <div className="mt-4 rounded-[6px] bg-red-50 p-3 text-sm font-bold text-red-600">{error}</div>}
-        {success && <div className="mt-4 rounded-[6px] bg-leaf-50 p-3 text-sm font-bold text-leaf-700">{success}</div>}
+        <Screen title={s.title} subtitle={s.subtitle} back>
+          <Notice tone="warning" title={s.legalTitle}>{s.legalText}</Notice>
 
-        <Card className="mt-4">
-          <div className="grid gap-4 md:grid-cols-2">
-            <Field label="Borrower">
-              <SelectInput value={borrowerId} onChange={(e) => { setBorrowerId(e.target.value); setLoanId(""); }}>
-                <option value="">Select Borrower</option>
-                {borrowers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-              </SelectInput>
-            </Field>
+          <Card>
+            <div className="grid gap-4">
+              <Field label={s.borrower}>
+                <Select value={borrowerId} onChange={(e) => { setBorrowerId(e.target.value); setLoanId(""); }}>
+                  <option value="">{s.chooseBorrower}</option>
+                  {borrowers.map((b) => <option key={b.id} value={b.id}>{borrowerName(b)}</option>)}
+                </Select>
+              </Field>
+              <Field label={s.loan}>
+                <Select value={loanId} onChange={(e) => setLoanId(e.target.value)} disabled={!borrowerId}>
+                  <option value="">{s.chooseLoan}</option>
+                  {borrowerLoans.map((l) => <option key={l.id} value={l.id}>{s.loanOption(loanAmount(l), toDateKey(l.loanDate))}</option>)}
+                </Select>
+              </Field>
+              <Field label={s.docLanguage}>
+                <Segmented
+                  value={paperLanguage}
+                  onChange={setPaperLanguage}
+                  options={[{ value: "te", label: agreementPaperCopy.te.languageName }, { value: "en", label: agreementPaperCopy.en.languageName }]}
+                />
+              </Field>
+              <Field label={s.witness}>
+                <Input value={witnessName} onChange={(e) => setWitnessName(e.target.value)} />
+              </Field>
+            </div>
+          </Card>
 
-            <Field label="Loan">
-              <SelectInput value={loanId} onChange={(e) => setLoanId(e.target.value)} disabled={!borrowerId}>
-                <option value="">Select Loan</option>
-                {borrowerLoans.map(l => (
-                  <option key={l.id} value={l.id}>₹{l.principal} on {l.loanDate}</option>
+          <Section title={s.signatures}>
+            <div className="grid gap-3">
+              <p className="px-1 text-[13px] font-medium text-ink-muted">{s.signaturesHint}</p>
+              <FilePicker label={s.borrowerSign} accept="image/*" file={borrowerSignFile} onChange={setBorrowerSignFile} icon={PenLine} placeholder={s.pickPhoto} />
+              <FilePicker label={s.lenderSign} accept="image/*" file={lenderSignFile} onChange={setLenderSignFile} icon={PenLine} placeholder={s.pickPhoto} />
+              <FilePicker label={s.witnessSign} accept="image/*" file={witnessSignFile} onChange={setWitnessSignFile} icon={PenLine} placeholder={s.pickPhoto} />
+            </div>
+          </Section>
+
+          {paperText && (
+            <Card>
+              <p className="text-[17px] font-extrabold text-ink">{paper.heading}</p>
+              <p className="mt-2 text-[15px] font-medium leading-relaxed text-ink-soft">{paperText.body}</p>
+              <p className="mt-2 text-[15px] font-medium leading-relaxed text-ink-soft">{paperText.repay}</p>
+            </Card>
+          )}
+
+          <p className="px-1 text-[13px] font-medium text-ink-muted">{s.whatHappens}</p>
+          {error && <Notice tone="error">{error}</Notice>}
+          {success && <Notice tone="success">{success}</Notice>}
+          <Button size="lg" block icon={Printer} loading={loading} disabled={!borrowerId || !loanId} onClick={handleGenerate}>
+            {loading ? s.saving : s.generate}
+          </Button>
+
+          <Section title={s.saved_list}>
+            {saved.length === 0 ? (
+              <Card><p className="text-[15px] font-medium text-ink-muted">{s.noSaved}</p></Card>
+            ) : (
+              <List>
+                {saved.slice(0, 10).map((a) => (
+                  <ListRow
+                    key={a.id}
+                    icon={FileSignature}
+                    title={nameOf(a.borrowerId)}
+                    subtitle={s.savedOn(toDateKey(a.generatedAt) || "—")}
+                    to={a.loanId ? `/loans/${a.loanId}` : undefined}
+                  />
                 ))}
-              </SelectInput>
-            </Field>
-
-            <Field label="Language">
-              <SelectInput value={language} onChange={e => setLanguage(e.target.value)}>
-                <option value="te">Telugu</option>
-                <option value="en">English</option>
-              </SelectInput>
-            </Field>
-            
-            <Field label="Witness name">
-              <TextInput value={witnessName} onChange={e => setWitnessName(e.target.value)} />
-            </Field>
-            
-            <Field label="Borrower signature (Camera)">
-              <TextInput type="file" accept="image/*" capture="environment" onChange={e => setBorrowerSignFile(e.target.files[0])} />
-            </Field>
-            
-            <Field label="Lender signature (Camera)">
-              <TextInput type="file" accept="image/*" capture="environment" onChange={e => setLenderSignFile(e.target.files[0])} />
-            </Field>
-
-            <Field label="Witness signature (Camera)">
-              <TextInput type="file" accept="image/*" capture="environment" onChange={e => setWitnessSignFile(e.target.files[0])} />
-            </Field>
-          </div>
-          
-          <div className="mt-5 rounded-[8px] bg-soil-50 p-4">
-            <SectionTitle title="Preview" />
-            <p className="text-sm font-semibold leading-6 text-slate-700">
-              This will save the signatures to the cloud, create a digital agreement record, and immediately open the PDF print view so you can save or share it.
-            </p>
-          </div>
-          
-          <ActionButton className="mt-5 w-full" onClick={handleGenerate} disabled={loading || !borrowerId || !loanId}>
-            {loading ? "Saving & Generating..." : <><Printer size={18} /> Save & Generate PDF</>}
-          </ActionButton>
-        </Card>
+              </List>
+            )}
+          </Section>
+        </Screen>
       </div>
 
-      {/* This area is ONLY visible when printing (via CSS print media queries) */}
-      <div className="hidden print:block" ref={printRef}>
-        {selectedBorrower && selectedLoan && (
-          <div className="p-8 border-2 border-slate-900 rounded-lg">
-            <h1 className="text-3xl font-black text-center mb-8 uppercase">
-              {language === "te" ? "రుణ ఒప్పంద పత్రం" : "LOAN AGREEMENT"}
-            </h1>
-            
-            <p className="mb-4 text-lg leading-relaxed">
-              {language === "te" 
-                ? `ఈ రోజు ${new Date().toLocaleDateString('te-IN')} న, అప్పుదారుడైన ${selectedBorrower.name} (${selectedBorrower.village} గ్రామం, తండ్రి: ${selectedBorrower.fatherName}), అప్పు ఇచ్చేవారి వద్ద నుండి రూ. ${selectedLoan.principal}/- (వడ్డీ రేటు: ${selectedLoan.interestRate}%, పద్ధతి: ${selectedLoan.interestType}) రుణంగా తీసుకున్నానని అంగీకరిస్తున్నాను.`
-                : `This agreement is made on ${new Date().toLocaleDateString()} between the Borrower ${selectedBorrower.name} (from ${selectedBorrower.village}, D/o or S/o: ${selectedBorrower.fatherName}) and the Lender. The Borrower acknowledges receiving a loan of ₹${selectedLoan.principal}/- at an interest rate of ${selectedLoan.interestRate}% (${selectedLoan.interestType}).`}
-            </p>
-
-            <p className="mb-8 text-lg leading-relaxed">
-              {language === "te"
-                ? `ఈ రుణాన్ని గడువు తేదీ (${selectedLoan.dueDate || "N/A"}) లోగా తిరిగి చెల్లించడానికి నేను బాధ్యుడిని. సాక్షి ${witnessName || "________"} సమక్షంలో ఈ ఒప్పందం కుదుర్చుకున్నాము.`
-                : `The Borrower agrees to repay this loan by the due date (${selectedLoan.dueDate || "N/A"}). This agreement is witnessed by ${witnessName || "________"}.`}
-            </p>
-
+      {/* Only visible when printing. */}
+      <div className="hidden print:block" lang={paperLanguage}>
+        {paperText && (
+          <div className="rounded-lg border-2 border-black p-8 text-black">
+            <h1 className="mb-8 text-center text-3xl font-black">{paper.heading}</h1>
+            <p className="mb-4 text-lg leading-relaxed">{paperText.body}</p>
+            <p className="mb-8 text-lg leading-relaxed">{paperText.repay}</p>
             <div className="mt-16 grid grid-cols-2 gap-8 pt-8">
-              <div className="text-center">
-                <div className="h-24 flex items-end justify-center border-b-2 border-slate-300 mb-2 pb-2">
-                  {borrowerSignFile ? (
-                    <img src={URL.createObjectURL(borrowerSignFile)} alt="Borrower Signature" className="max-h-20 object-contain" />
-                  ) : (
-                    <span className="text-slate-400 italic">Signature digitally attached</span>
-                  )}
-                </div>
-                <p className="font-bold">{language === "te" ? "అప్పుదారు సంతకం" : "Borrower Signature"}</p>
-                <p className="text-sm">{selectedBorrower.name}</p>
-              </div>
-              
-              <div className="text-center">
-                <div className="h-24 flex items-end justify-center border-b-2 border-slate-300 mb-2 pb-2">
-                  {lenderSignFile ? (
-                    <img src={URL.createObjectURL(lenderSignFile)} alt="Lender Signature" className="max-h-20 object-contain" />
-                  ) : (
-                    <span className="text-slate-400 italic">Signature digitally attached</span>
-                  )}
-                </div>
-                <p className="font-bold">{language === "te" ? "లెంట్దారు సంతకం" : "Lender Signature"}</p>
-              </div>
+              <SignatureBox src={borrowerSign} label={paper.borrowerSign} name={borrowerName(selectedBorrower)} />
+              <SignatureBox src={lenderSign} label={paper.lenderSign} name={lender?.name} />
             </div>
-            
-            {witnessName && (
-               <div className="mt-12 text-left w-1/2">
-                <div className="h-24 flex items-end justify-start border-b-2 border-slate-300 mb-2 pb-2">
-                  {witnessSignFile ? (
-                    <img src={URL.createObjectURL(witnessSignFile)} alt="Witness Signature" className="max-h-20 object-contain" />
-                  ) : (
-                    <span className="text-slate-400 italic">Signature digitally attached</span>
-                  )}
-                </div>
-                <p className="font-bold">{language === "te" ? "సాక్షి సంతకం" : "Witness Signature"}</p>
-                <p className="text-sm">{witnessName}</p>
-               </div>
+            {witnessName.trim() && (
+              <div className="mt-12 w-1/2">
+                <SignatureBox src={witnessSign} label={paper.witnessSign} name={witnessName.trim()} />
+              </div>
             )}
+            <p className="mt-12 border-t border-black pt-4 text-sm">{paper.note}</p>
           </div>
         )}
       </div>
-    </div>
+    </>
   );
 }

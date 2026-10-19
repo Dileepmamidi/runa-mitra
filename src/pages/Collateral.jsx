@@ -1,23 +1,23 @@
-import { ActionButton } from "../components/ActionButton";
-import { Card } from "../components/Card";
-import { Field, SelectInput, TextArea, TextInput } from "../components/FormControls";
+import { useApp } from "../context/AppContext";
+import { useCopy } from "../i18n/useCopy";
+import { Card, Notice, NotAvailable, Screen, Section } from "../ui";
+import { collateralCopy } from "./Collateral.copy";
 
+// Honest placeholder: this feature is not built yet and saves nothing.
 export function Collateral() {
+  const { t } = useApp();
+  const s = useCopy(collateralCopy);
   return (
-    <div className="mx-auto max-w-2xl md:ml-56">
-      <h1 className="text-2xl font-black text-slate-950">Security submitted by borrower</h1>
-      <Card className="mt-4">
-        <div className="grid gap-4 md:grid-cols-2">
-          <Field label="Type"><TextInput /></Field>
-          <Field label="Estimated value"><TextInput type="number" /></Field>
-          <Field label="Description"><TextArea /></Field>
-          <Field label="Photos"><TextInput type="file" accept="image/*" multiple /></Field>
-          <Field label="Documents"><TextInput type="file" multiple /></Field>
-          <Field label="Returned status"><SelectInput><option>Not returned</option><option>Returned</option></SelectInput></Field>
-          <Field label="Return date"><TextInput type="date" /></Field>
-        </div>
-        <ActionButton className="mt-4 w-full">Save Security Details</ActionButton>
-      </Card>
-    </div>
+    <Screen title={s.title} back="/more">
+      <NotAvailable title={t.notAvailable} text={t.notAvailableText} />
+      <Section title={s.planTitle}>
+        <Card>
+          <ul className="grid list-disc gap-2 pl-5 text-[15px] font-medium text-ink">
+            {s.points.map((point) => <li key={point}>{point}</li>)}
+          </ul>
+        </Card>
+      </Section>
+      <Notice tone="info">{s.today}</Notice>
+    </Screen>
   );
 }

@@ -1,19 +1,25 @@
-export function ChartBars({ data, color = "bg-leaf-600" }) {
-  const max = Math.max(...data.map((item) => item.value), 1);
+// Simple bar chart. `data` = [{ label, value, display? }]. The tallest bar is
+// labelled with its value; every bar has an accessible title.
+export function ChartBars({ data }) {
+  const max = Math.max(...data.map((item) => item.value), 0);
   return (
-    <div className="flex h-40 items-end gap-3 rounded-[8px] bg-soil-50 p-3">
-      {data.map((item) => (
-        <div key={item.label} className="flex flex-1 flex-col items-center gap-2">
-          <div className="flex h-28 w-full items-end">
-            <div
-              className={`w-full rounded-t-[8px] ${color}`}
-              style={{ height: `${Math.max(16, (item.value / max) * 100)}%` }}
-              title={`${item.label}: ${item.value}`}
-            />
+    <div className="flex h-44 items-end gap-2" role="img" aria-label={data.map((d) => `${d.label}: ${d.display ?? d.value}`).join(", ")}>
+      {data.map((item) => {
+        const pct = max > 0 ? (item.value / max) * 100 : 0;
+        return (
+          <div key={item.label} className="flex h-full flex-1 flex-col items-center justify-end gap-2">
+            <span className="tabular text-[11px] font-bold text-ink-muted">{item.value > 0 && item.value === max ? item.display ?? item.value : ""}</span>
+            <div className="flex w-full flex-1 items-end">
+              <div
+                className={`w-full rounded-t-lg ${item.value > 0 ? "bg-brand-500" : "bg-line"}`}
+                style={{ height: `${item.value > 0 ? Math.max(6, pct) : 3}%` }}
+                title={`${item.label}: ${item.display ?? item.value}`}
+              />
+            </div>
+            <span className="text-[12px] font-bold text-ink-muted">{item.label}</span>
           </div>
-          <span className="text-[11px] font-bold text-slate-500">{item.label}</span>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

@@ -12,6 +12,7 @@ import {
   updateDoc,
   where,
   arrayUnion,
+  deleteField,
   runTransaction,
   writeBatch
 } from "firebase/firestore";
@@ -190,18 +191,26 @@ export function isBorrowerVisible(name, record) {
 }
 
 // Lender side: stamp borrowerUid on records of linked borrowers so the linked
-// borrower can read them. Never removes or changes any other field.
+// borrower can read them, and remove it from records that are hidden or whose
+// borrower is no longer linked. Never changes any other field.
 export async function syncBorrowerSharing(lenderUid, borrowers, data) {
   const linked = new Map(borrowers.filter((b) => b.linkedUid).map((b) => [b.id, b.linkedUid]));
-  if (linked.size === 0) return 0;
   let batch = writeBatch(db);
   let pending = 0;
   let total = 0;
   for (const name of SHARED_COLLECTIONS) {
     for (const record of data[name] || []) {
       const uid = linked.get(record.borrowerId);
-      if (!uid || record.borrowerUid === uid || !isBorrowerVisible(name, record)) continue;
-      batch.update(doc(db, "users", lenderUid, name, record.id), { borrowerUid: uid });
+      const visible = isBorrowerVisible(name, record);
+      let change = null;
+      if (record.borrowerUid && (!visible || record.borrowerUid !== uid)) {
+        // Hidden, unlinked or re-linked: stop sharing with the old account.
+        change = { borrowerUid: uid && visible ? uid : deleteField() };
+      } else if (uid && visible && record.borrowerUid !== uid) {
+        change = { borrowerUid: uid };
+      }
+      if (!change) continue;
+      batch.update(doc(db, "users", lenderUid, name, record.id), change);
       pending += 1;
       total += 1;
       if (pending === 400) {
@@ -223,6 +232,13 @@ export async function listSharedRecords(lenderUid, borrowerUid, name) {
 
 // ---------- Payments (atomic) ----------
 
+// The legacy `balance` field tracks principal only; interest-only payments
+// do not reduce it. Amounts shown to people come from the interest engine.
+function legacyBalanceAfter(loan, payment) {
+  if (payment.paymentType === "interest_only") return Number(loan.balance || 0);
+  return Math.max(0, Number(loan.balance || 0) - Number(payment.amount));
+}
+
 // Lender records a payment and updates the legacy `balance` field in one
 // transaction, so two devices cannot double-count.
 export async function recordLenderPayment(lenderUid, loanId, payment) {
@@ -240,7 +256,7 @@ export async function recordLenderPayment(lenderUid, loanId, payment) {
       updatedAt: serverTimestamp()
     });
     tx.update(loanRef, {
-      balance: Math.max(0, Number(loan.balance || 0) - Number(payment.amount)),
+      balance: legacyBalanceAfter(loan, payment),
       updatedAt: serverTimestamp()
     });
   });
@@ -262,7 +278,67 @@ export async function approveBorrowerPayment(lenderUid, paymentId) {
     if (loanSnap.exists()) {
       const loan = loanSnap.data();
       tx.update(loanRef, {
-        balance: Math.max(0, Number(loan.balance || 0) - Number(payment.amount)),
+        balance: legacyBalanceAfter(loan, payment),
+        updatedAt: serverTimestamp()
+      });
+    }
+  });
+}
+
+// ---------- Extension requests (atomic) ----------
+
+function addDaysKey(key, days) {
+  const d = new Date(`${key}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+// The date a request asks for: its explicit date, or N days after the current
+// due date (or today if there is none).
+export function requestedDueDate(message, loan) {
+  if (message.requestedDate) return message.requestedDate;
+  const base = loan?.dueDate || new Date().toISOString().slice(0, 10);
+  return addDaysKey(base, Number(message.requestedDays) || 0);
+}
+
+// Lender approves or rejects a borrower's request for more time. Approval
+// moves only the due date (interest terms are unchanged) and records the
+// change in the loan's termsHistory. Fails if the request was already decided.
+export async function decideExtensionRequest(lenderUid, messageId, { approve, response = "" }) {
+  const msgRef = doc(db, "users", lenderUid, "messages", messageId);
+  await runTransaction(db, async (tx) => {
+    const msgSnap = await tx.get(msgRef);
+    if (!msgSnap.exists()) throw new Error("Request not found.");
+    const msg = msgSnap.data();
+    if (msg.type !== "extension_request" || msg.status !== "pending") throw new Error("This request was already handled.");
+    const loanRef = doc(db, "users", lenderUid, "loans", msg.loanId);
+    const loanSnap = await tx.get(loanRef);
+    if (!loanSnap.exists()) throw new Error("Loan not found.");
+    const loan = loanSnap.data();
+    const previousDueDate = loan.dueDate || "";
+    const newDueDate = requestedDueDate(msg, loan);
+    const now = new Date();
+
+    tx.update(msgRef, {
+      status: approve ? "approved" : "rejected",
+      response,
+      respondedAt: now,
+      previousDueDate,
+      ...(approve ? { approvedDueDate: newDueDate } : {}),
+      updatedAt: serverTimestamp()
+    });
+    if (approve) {
+      tx.update(loanRef, {
+        dueDate: newDueDate,
+        termsHistory: arrayUnion({
+          changedAt: now.toISOString(),
+          changedBy: lenderUid,
+          previous: { dueDate: previousDueDate },
+          next: { dueDate: newDueDate },
+          reason: response,
+          source: "extension_request",
+          requestId: messageId
+        }),
         updatedAt: serverTimestamp()
       });
     }

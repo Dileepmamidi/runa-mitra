@@ -1,131 +1,198 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
-import { BadgeCheck, Download, Eye, Upload } from "lucide-react";
-import { ActionButton } from "../components/ActionButton";
-import { Card, SectionTitle } from "../components/Card";
-import { Field, SelectInput, TextInput } from "../components/FormControls";
+import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { deleteField } from "firebase/firestore";
+import { ExternalLink, FileText, FolderOpen, IdCard, Upload } from "lucide-react";
 import { useApp } from "../context/AppContext";
-import { addUserRecord, uploadEvidence, listUserCollection } from "../services/firebaseService";
-import { useEffect } from "react";
+import { useCopy } from "../i18n/useCopy";
+import { addUserRecord, listUserCollection, updateUserRecord, uploadEvidence } from "../services/firebaseService";
+import { toDateKey } from "../utils/interestEngine";
+import { Badge, Button, Card, EmptyState, Field, FilePicker, List, ListRow, Notice, Screen, Section, Select } from "../ui";
+import { documentsCopy } from "./DocumentsEvidence.copy";
+
+// Stored category values stay as they are; only the labels are translated.
+const CATEGORIES = ["Handwritten note", "Borrower photo", "Voice promise", "ID proof", "Aadhaar verification", "Land document", "Gold photo"];
+const IDENTITY = ["aadhaar", "identity", "id proof"];
+const isIdentity = (category) => IDENTITY.some((w) => String(category || "").toLowerCase().includes(w));
+const borrowerName = (b) => b?.personalInfo?.name || b?.name || "";
+
+function Toggle({ checked, disabled, onChange, label }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      disabled={disabled}
+      onClick={() => onChange(!checked)}
+      className={`relative h-8 w-14 shrink-0 rounded-full transition disabled:opacity-50 ${checked ? "bg-brand-600" : "bg-line"}`}
+    >
+      <span className={`absolute top-1 h-6 w-6 rounded-full bg-white shadow-soft transition-all ${checked ? "left-7" : "left-1"}`} />
+    </button>
+  );
+}
 
 export function DocumentsEvidence() {
-  const { user, borrowers } = useApp();
-  const [borrowerId, setBorrowerId] = useState(borrowers[0]?.id || "");
-  const [category, setCategory] = useState("Handwritten note");
+  const { user, borrowers, refreshData } = useApp();
+  const s = useCopy(documentsCopy);
+  const [params] = useSearchParams();
+  const [borrowerId, setBorrowerId] = useState(params.get("borrower") || "");
+  const [category, setCategory] = useState(CATEGORIES[0]);
   const [file, setFile] = useState(null);
-  
+  const [visible, setVisible] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [busyId, setBusyId] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  
-  const [evidences, setEvidences] = useState([]);
+  const [docs, setDocs] = useState([]);
 
-  const docs = ["Handwritten note", "Borrower photo", "Voice promise", "ID proof", "Aadhaar verification", "Land document", "Gold photo"];
+  const identity = isIdentity(category);
+
+  const load = useCallback(async () => {
+    if (!user || !borrowerId) return setDocs([]);
+    const all = await listUserCollection(user.uid, "evidence");
+    const dateOf = (d) => toDateKey(d.uploadedAt) || toDateKey(d.createdAt) || "";
+    setDocs(all.filter((e) => e.borrowerId === borrowerId).sort((a, b) => (dateOf(a) < dateOf(b) ? 1 : -1)));
+  }, [user, borrowerId]);
 
   useEffect(() => {
-    if (user && borrowerId) {
-      listUserCollection(user.uid, "evidence").then((allEvidences) => {
-        setEvidences(allEvidences.filter(e => e.borrowerId === borrowerId));
-      });
-    }
-  }, [user, borrowerId]);
+    load().catch((err) => console.error(err));
+  }, [load]);
+
+  // Identity documents default to private and cannot be shared.
+  const changeCategory = (next) => {
+    setCategory(next);
+    setVisible(!isIdentity(next));
+  };
 
   const handleUpload = async () => {
     setError("");
     setSuccess("");
-    if (!user) return setError("Must be logged in.");
-    if (!borrowerId) return setError("Please select a borrower.");
-    if (!file) return setError("Please select a file to upload.");
-
+    if (!user || !borrowerId) return;
+    if (!file) return setError(s.needFile);
     try {
       setLoading(true);
       const fileUrl = await uploadEvidence(user.uid, file, ["evidence", borrowerId]);
-      
-      const evidenceData = {
+      await addUserRecord(user.uid, "evidence", {
         borrowerId,
         category,
         fileUrl,
         fileName: file.name,
         uploadedAt: new Date(),
-      };
-
-      await addUserRecord(user.uid, "evidence", evidenceData);
-      setSuccess("File uploaded securely!");
-      
-      // Refresh local list
-      const updatedList = await listUserCollection(user.uid, "evidence");
-      setEvidences(updatedList.filter(e => e.borrowerId === borrowerId));
-      
-      // Reset file input
+        visibleToBorrower: identity ? false : visible
+      });
       setFile(null);
-      // document.getElementById("fileInput").value = "";
+      setSuccess(s.uploaded);
+      await load();
+      await refreshData(); // shares newly visible files with a linked borrower
     } catch (err) {
       console.error(err);
-      setError("Upload failed. Try again.");
+      setError(s.uploadError);
     } finally {
       setLoading(false);
     }
   };
 
-  return (
-    <div className="mx-auto max-w-3xl md:ml-56">
-      <h1 className="text-2xl font-black text-slate-950">Documents & Evidence</h1>
-      
-      <Link
-        to="/aadhaar-verification"
-        className="mt-4 flex min-h-16 items-center justify-between gap-3 rounded-[8px] bg-leaf-600 p-4 font-bold text-white shadow-soft"
-      >
-        <span className="flex items-center gap-3"><BadgeCheck size={22} /> Aadhaar Verification</span>
-        <span className="text-sm text-leaf-100">Optional</span>
-      </Link>
-      
-      {error && <div className="mt-4 rounded-[6px] bg-red-50 p-3 text-sm font-bold text-red-600">{error}</div>}
-      {success && <div className="mt-4 rounded-[6px] bg-leaf-50 p-3 text-sm font-bold text-leaf-700">{success}</div>}
+  const changeVisibility = async (doc, next) => {
+    setError("");
+    setSuccess("");
+    if (!user || isIdentity(doc.category)) return;
+    try {
+      setBusyId(doc.id);
+      // Hiding also removes the borrower's read access stamp.
+      await updateUserRecord(user.uid, "evidence", doc.id, next ? { visibleToBorrower: true } : { visibleToBorrower: false, borrowerUid: deleteField() });
+      await load();
+      await refreshData();
+    } catch (err) {
+      console.error(err);
+      setError(s.updateError);
+    } finally {
+      setBusyId("");
+    }
+  };
 
-      <Card className="mt-4">
-        <div className="grid gap-4 md:grid-cols-3">
-          <Field label="Borrower">
-            <SelectInput value={borrowerId} onChange={(e) => setBorrowerId(e.target.value)}>
-              <option value="">Select Borrower</option>
-              {borrowers.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-            </SelectInput>
-          </Field>
-          <Field label="Category">
-            <SelectInput value={category} onChange={(e) => setCategory(e.target.value)}>
-              {docs.map((d) => <option key={d}>{d}</option>)}
-            </SelectInput>
-          </Field>
-          <Field label="Scan/Upload file (Camera)">
-            <TextInput 
-              id="fileInput"
-              type="file" 
-              capture="environment"
-              onChange={(e) => setFile(e.target.files[0])} 
-            />
-          </Field>
-        </div>
-        <ActionButton className="mt-4" onClick={handleUpload} disabled={loading || !file}>
-          <Upload size={18} /> {loading ? "Uploading..." : "Upload securely"}
-        </ActionButton>
+  const shownToBorrower = (doc) => doc.visibleToBorrower !== false && !isIdentity(doc.category);
+
+  return (
+    <Screen title={s.title} back>
+      <List>
+        <ListRow icon={IdCard} title={s.identityLink} to={borrowerId ? `/aadhaar-verification?borrower=${borrowerId}` : "/aadhaar-verification"} trailing={<Badge>{s.optional}</Badge>} />
+      </List>
+
+      <Card>
+        <Field label={s.borrower}>
+          <Select value={borrowerId} onChange={(e) => setBorrowerId(e.target.value)}>
+            <option value="">{s.chooseBorrower}</option>
+            {borrowers.map((b) => <option key={b.id} value={b.id}>{borrowerName(b)}</option>)}
+          </Select>
+        </Field>
       </Card>
-      
-      <div className="mt-4 grid gap-3 md:grid-cols-2">
-        {evidences.length === 0 ? (
-          <p className="py-4 text-sm font-bold text-slate-400">No documents uploaded for this borrower yet.</p>
-        ) : (
-          evidences.map((doc) => (
-            <Card key={doc.id}>
-              <SectionTitle title={doc.category} />
-              <p className="text-sm font-semibold text-slate-500 truncate">{doc.fileName}</p>
-              <div className="mt-3 flex gap-2">
-                <a href={doc.fileUrl} target="_blank" rel="noreferrer" className="inline-flex h-11 items-center justify-center rounded-[8px] bg-slate-100 px-4 text-sm font-bold text-slate-700 hover:bg-slate-200">
-                  <Eye size={16} className="mr-2" /> View
-                </a>
+
+      {!borrowerId ? (
+        <EmptyState icon={FolderOpen} title={s.pickFirst} />
+      ) : (
+        <>
+          <Card>
+            <div className="grid gap-4">
+              <Field label={s.category}>
+                <Select value={category} onChange={(e) => changeCategory(e.target.value)}>
+                  {CATEGORIES.map((c) => <option key={c} value={c}>{s.categories[c]}</option>)}
+                </Select>
+              </Field>
+              <FilePicker label={s.file} file={file} onChange={setFile} icon={Upload} placeholder={s.filePlaceholder} />
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-[15px] font-bold text-ink">{s.visible}</p>
+                  <p className="mt-0.5 text-[13px] font-medium text-ink-muted">{identity ? s.identityLocked : s.visibleHint}</p>
+                </div>
+                <Toggle checked={identity ? false : visible} disabled={identity} onChange={setVisible} label={s.visible} />
               </div>
-            </Card>
-          ))
-        )}
-      </div>
-    </div>
+              {error && <Notice tone="error">{error}</Notice>}
+              {success && <Notice tone="success">{success}</Notice>}
+              <Button size="lg" block icon={Upload} loading={loading} disabled={!file} onClick={handleUpload}>{s.upload}</Button>
+            </div>
+          </Card>
+
+          <Section title={s.listTitle}>
+            {docs.length === 0 ? (
+              <EmptyState icon={FileText} title={s.empty} />
+            ) : (
+              <div className="grid gap-3">
+                {docs.map((doc) => {
+                  const locked = isIdentity(doc.category);
+                  const shown = shownToBorrower(doc);
+                  return (
+                    <Card key={doc.id}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-[16px] font-bold text-ink">{s.categories[doc.category] || doc.category}</p>
+                          <p className="mt-0.5 truncate text-[13px] font-medium text-ink-muted">
+                            {(toDateKey(doc.uploadedAt) || toDateKey(doc.createdAt) || s.noDate)} · {doc.fileName}
+                          </p>
+                        </div>
+                        <Badge tone={shown ? "brand" : "ink"}>{shown ? s.shown : s.hidden}</Badge>
+                      </div>
+                      <div className="mt-3 flex items-center justify-between gap-3">
+                        <a
+                          href={doc.fileUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-brand-50 px-4 text-[15px] font-bold text-brand-700 active:bg-brand-100"
+                        >
+                          <ExternalLink size={18} /> {s.open}
+                        </a>
+                        <span className="flex items-center gap-2">
+                          <span className="text-[13px] font-semibold text-ink-muted">{s.visible}</span>
+                          <Toggle checked={shown} disabled={locked || busyId === doc.id} onChange={(next) => changeVisibility(doc, next)} label={s.visible} />
+                        </span>
+                      </div>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </Section>
+        </>
+      )}
+    </Screen>
   );
 }

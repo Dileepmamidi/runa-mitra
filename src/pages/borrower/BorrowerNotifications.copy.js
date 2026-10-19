@@ -1,0 +1,42 @@
+export const borrowerNotificationsCopy = {
+  en: {
+    title: "Updates",
+    subtitle: "What has happened on your loans",
+    inAppOnly: "These updates are shown only inside this app.",
+    dueSoon: "Coming up",
+    recent: "Recent updates",
+    empty: "No updates yet.",
+    dueOverdue: (lender, date) => `The due date for your loan from ${lender} was ${date}.`,
+    dueToday: (lender) => `Your loan from ${lender} is due today.`,
+    dueUpcoming: (lender, date) => `Your loan from ${lender} is due on ${date}.`,
+    lenderRecorded: (amount) => `Your lender recorded a payment of ${amount}.`,
+    youSent: (amount) => `You told your lender about a payment of ${amount}.`,
+    confirmed: (amount) => `Your lender confirmed your payment of ${amount}.`,
+    rejected: (amount) => `Your lender did not accept your payment of ${amount}.`,
+    cancelled: (amount) => `A payment record of ${amount} was cancelled by your lender.`,
+    extApproved: "Your lender agreed to give you more time.",
+    extRejected: "Your lender did not agree to give more time.",
+    extOther: "Your lender looked at your request for more time.",
+    answered: "Your lender answered your question."
+  },
+  te: {
+    title: "సమాచారం",
+    subtitle: "మీ అప్పులపై ఏం జరిగిందో",
+    inAppOnly: "ఈ సమాచారం ఈ యాప్‌లో మాత్రమే కనిపిస్తుంది.",
+    dueSoon: "త్వరలో రాబోయేవి",
+    recent: "ఇటీవలి సమాచారం",
+    empty: "ఇంకా ఏ సమాచారం లేదు.",
+    dueOverdue: (lender, date) => `${lender} గారి అప్పు గడువు ${date} తో అయిపోయింది.`,
+    dueToday: (lender) => `${lender} గారి అప్పు గడువు ఈరోజే.`,
+    dueUpcoming: (lender, date) => `${lender} గారి అప్పు గడువు ${date}.`,
+    lenderRecorded: (amount) => `రుణదాత ${amount} చెల్లింపును నమోదు చేశారు.`,
+    youSent: (amount) => `${amount} కట్టినట్టు మీరు రుణదాతకు తెలియజేశారు.`,
+    confirmed: (amount) => `మీ ${amount} చెల్లింపును రుణదాత ఒప్పుకున్నారు.`,
+    rejected: (amount) => `మీ ${amount} చెల్లింపును రుణదాత ఒప్పుకోలేదు.`,
+    cancelled: (amount) => `${amount} చెల్లింపు నమోదును రుణదాత రద్దు చేశారు.`,
+    extApproved: "ఇంకొంచెం సమయం ఇవ్వడానికి రుణదాత ఒప్పుకున్నారు.",
+    extRejected: "ఇంకొంచెం సమయం ఇవ్వడానికి రుణదాత ఒప్పుకోలేదు.",
+    extOther: "సమయం కోసం మీ అభ్యర్థనను రుణదాత చూశారు.",
+    answered: "మీ ప్రశ్నకు రుణదాత జవాబు ఇచ్చారు."
+  }
+};
