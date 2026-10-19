@@ -5,7 +5,7 @@ import { useApp } from "../context/AppContext";
 import { createBorrowerLink } from "../services/firebaseService";
 
 export function Settings() {
-  const { user, appMode, setAppMode, borrowers, language, setLanguage } = useApp();
+  const { user, lender, appMode, setAppMode, borrowers, language, setLanguage } = useApp();
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState("");
 
@@ -23,7 +23,7 @@ export function Settings() {
       let count = 0;
       for (const b of borrowers) {
         if (b.mobile) {
-          await createBorrowerLink(b.mobile, user.uid, b.id);
+          await createBorrowerLink(b.mobile, user.uid, b.id, { lenderName: lender.name, borrowerName: b.name });
           count++;
         }
       }

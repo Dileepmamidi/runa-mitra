@@ -6,13 +6,17 @@ import { StatusBadge } from "../components/StatusBadge";
 import { useApp } from "../context/AppContext";
 import { buildMonthlyBreakdown, currency } from "../utils/loanMath";
 import { generateReceipt } from "../utils/receiptGenerator";
+import { LoanBreakdown, useLoanCalculation } from "../components/LoanBreakdown";
+import { formatPaise } from "../utils/interestEngine";
 import { ReceiptText, Printer } from "lucide-react";
 
 export function LoanDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { loans, payments } = useApp();
-  const loan = loans.find((item) => item.id === id) || loans[0];
+  const loan = loans.find((item) => item.id === id);
+  const calc = useLoanCalculation(loan, payments);
+  if (!loan) return <div className="p-8 text-center text-xl font-bold">Loan not found</div>;
   const breakdown = buildMonthlyBreakdown({ principal: loan.principal, interestRate: loan.interestRate, interestType: loan.interestType, months: 4, cycle: loan.cycle });
 
   return (
@@ -32,9 +36,10 @@ export function LoanDetails() {
         </div>
         <div className="mt-4 grid grid-cols-2 gap-3">
           <div className="rounded-[8px] bg-leaf-50 p-3"><p className="text-xs font-bold text-slate-500">Principal</p><p className="text-xl font-black">{currency(loan.principal)}</p></div>
-          <div className="rounded-[8px] bg-danger-50 p-3"><p className="text-xs font-bold text-slate-500">Balance</p><p className="text-xl font-black">{currency(loan.balance)}</p></div>
+          <div className="rounded-[8px] bg-danger-50 p-3"><p className="text-xs font-bold text-slate-500">Outstanding</p><p className="text-xl font-black">{calc?.status === "ok" ? formatPaise(calc.outstandingPaise) : "—"}</p></div>
         </div>
       </Card>
+      <div className="mt-4"><LoanBreakdown loan={loan} payments={payments} /></div>
       <div className="mt-4 grid grid-cols-2 gap-3">
         <ActionButton>Add payment</ActionButton>
         <ActionButton variant="secondary">Extend repayment</ActionButton>

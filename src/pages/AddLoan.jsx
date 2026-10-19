@@ -6,6 +6,7 @@ import { Field, SelectInput, TextArea, TextInput } from "../components/FormContr
 import { useApp } from "../context/AppContext";
 import { buildMonthlyBreakdown, currency, getTotalPayable } from "../utils/loanMath";
 import { addUserRecord, uploadEvidence } from "../services/firebaseService";
+import { ENGINE_VERSION, rupeesToPaise } from "../utils/interestEngine";
 
 export function AddLoan() {
   const { user, borrowers, refreshData } = useApp();
@@ -82,6 +83,19 @@ export function AddLoan() {
         notes,
         status: "active",
         balance: principal, // Initially, full principal is owed
+        // Agreed terms used by the interest engine. Kept alongside the legacy
+        // fields above so older screens keep working.
+        terms: {
+          principalPaise: rupeesToPaise(principal),
+          ratePercent: Number(rate),
+          rateUnit: "month", // the form asks for "% per month"
+          method: interestType === "Compound" ? "compound" : "simple",
+          ...(interestType === "Compound" ? { compounding: cycle } : {}),
+          startDate: loanDate,
+          allocation: "interest_first",
+          pauses: [],
+          engineVersion: ENGINE_VERSION
+        },
         createdAt: new Date(),
         attachments: {
           voiceUrl,

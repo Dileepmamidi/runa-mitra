@@ -5,7 +5,7 @@ import { Card } from "../components/Card";
 import { StatusBadge } from "../components/StatusBadge";
 import { useApp } from "../context/AppContext";
 import { currency } from "../utils/loanMath";
-import { updateUserRecord } from "../services/firebaseService";
+import { approveBorrowerPayment, updateUserRecord } from "../services/firebaseService";
 import { useEffect } from "react";
 
 export function LenderInbox() {
@@ -33,21 +33,15 @@ export function LenderInbox() {
     try {
       setProcessing(payment.id);
       
-      // 1. Mark payment as verified
-      await updateUserRecord(user.uid, "payments", payment.id, { status: "verified", verifiedAt: new Date() });
-      
-      // 2. Deduct from loan balance
-      const loan = loans.find(l => l.id === payment.loanId);
-      if (loan) {
-        const newBalance = Math.max(0, loan.balance - payment.amount);
-        await updateUserRecord(user.uid, "loans", loan.id, { balance: newBalance });
-      }
+      // Marks the payment verified and updates the loan in one transaction;
+      // fails safely if this payment was already handled.
+      await approveBorrowerPayment(user.uid, payment.id);
       
       setHiddenPayments(prev => new Set(prev).add(payment.id));
       await refreshData();
     } catch (err) {
       console.error(err);
-      alert("Failed to approve payment.");
+      alert(err?.message || "Failed to approve payment.");
     } finally {
       setProcessing(null);
     }

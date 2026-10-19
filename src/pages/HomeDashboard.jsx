@@ -6,14 +6,21 @@ import { MetricCard } from "../components/MetricCard";
 import { StatusBadge } from "../components/StatusBadge";
 import { useApp } from "../context/AppContext";
 import { currency } from "../utils/loanMath";
+import { calculateLoan, countsAsPaid, paiseToRupees } from "../utils/interestEngine";
 
 export function HomeDashboard() {
   const { t, borrowers, payments, loans } = useApp();
 
   // Calculate real metrics from Firestore data
   const totalLent = loans.reduce((sum, l) => sum + (l.principal || 0), 0);
-  const totalPending = loans.reduce((sum, l) => sum + (l.balance || 0), 0);
-  const totalCollected = payments.reduce((sum, p) => sum + (p.amount || 0), 0);
+  // Outstanding (principal + unpaid interest) from the interest engine. Loans
+  // with unclear terms fall back to their recorded principal balance.
+  const outstandingOf = (loan) => {
+    const calc = calculateLoan(loan, payments.filter((p) => p.loanId === loan.id));
+    return calc.status === "ok" ? paiseToRupees(calc.outstandingPaise) : Number(loan.balance || 0);
+  };
+  const totalPending = loans.reduce((sum, l) => sum + outstandingOf(l), 0);
+  const totalCollected = payments.filter(countsAsPaid).reduce((sum, p) => sum + (p.amount || 0), 0);
 
   const today = new Date().toISOString().split("T")[0];
   const dueToday = loans.filter(l => l.dueDate === today && l.status !== "closed").length;
@@ -102,7 +109,7 @@ export function HomeDashboard() {
             {borrowers
               .map(borrower => {
                 const borrowerLoans = loans.filter(l => l.borrowerId === borrower.id);
-                const totalBalance = borrowerLoans.reduce((sum, l) => sum + l.balance, 0);
+                const totalBalance = borrowerLoans.reduce((sum, l) => sum + outstandingOf(l), 0);
                 return { ...borrower, totalBalance };
               })
               .filter(b => b.totalBalance > 0)

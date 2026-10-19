@@ -8,7 +8,7 @@ import { updateUserRecord, uploadEvidence, deleteUserRecord, createBorrowerLink 
 
 export function EditBorrower() {
   const { id } = useParams();
-  const { user, borrowers, loans, refreshData } = useApp();
+  const { user, lender, borrowers, loans, refreshData } = useApp();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -80,7 +80,7 @@ export function EditBorrower() {
       
       // Note: We sync the link here to heal any broken multi-lender links automatically.
       if (formData.mobile) {
-        await createBorrowerLink(formData.mobile, user.uid, id);
+        await createBorrowerLink(formData.mobile, user.uid, id, { lenderName: lender.name, borrowerName: formData.name });
       }
 
       await refreshData();

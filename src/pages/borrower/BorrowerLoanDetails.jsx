@@ -3,18 +3,20 @@ import { ArrowLeft, CheckCircle2, AlertCircle } from "lucide-react";
 import { useApp } from "../../context/AppContext";
 import { currency } from "../../utils/loanMath";
 import { Card, SectionTitle } from "../../components/Card";
+import { LoanBreakdown, useLoanCalculation } from "../../components/LoanBreakdown";
+import { formatPaise } from "../../utils/interestEngine";
 
 export function BorrowerLoanDetails() {
   const { id } = useParams();
   const { loans, payments } = useApp();
   
   const loan = loans.find(l => l.id === id);
-  const loanPayments = payments.filter(p => p.loanId === id);
+  const calc = useLoanCalculation(loan, payments);
   
   if (!loan) return <div className="p-8 text-center text-xl font-bold">Loan not found</div>;
 
-  const totalPaid = loanPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
-  const isCleared = loan.balance <= 0;
+  const ok = calc?.status === "ok";
+  const isCleared = ok && calc.settled;
 
   return (
     <div className="mx-auto max-w-2xl">
@@ -43,7 +45,7 @@ export function BorrowerLoanDetails() {
           </div>
           <div>
             <p className="text-sm font-bold text-slate-500">బకాయి (Pending)</p>
-            <p className="text-2xl font-black text-danger-600">{currency(loan.balance)}</p>
+            <p className="text-2xl font-black text-danger-600">{ok ? formatPaise(calc.outstandingPaise) : "—"}</p>
           </div>
           <div>
             <p className="text-sm font-bold text-slate-500">వడ్డీ రేటు (Rate)</p>
@@ -59,10 +61,12 @@ export function BorrowerLoanDetails() {
           </div>
           <div>
              <p className="text-sm font-bold text-slate-500">Total Paid</p>
-             <p className="text-lg font-bold text-leaf-700">{currency(totalPaid)}</p>
+             <p className="text-lg font-bold text-leaf-700">{ok ? formatPaise(calc.totalPaidPaise) : "—"}</p>
           </div>
         </div>
       </Card>
+
+      <div className="mb-6"><LoanBreakdown loan={loan} payments={payments} /></div>
 
       <Card>
         <SectionTitle title="మార్పుల చరిత్ర (Change History)" />

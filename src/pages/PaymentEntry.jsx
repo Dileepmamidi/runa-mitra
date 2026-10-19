@@ -5,7 +5,7 @@ import { Card } from "../components/Card";
 import { Field, SelectInput, TextInput } from "../components/FormControls";
 import { currency } from "../utils/loanMath";
 import { useApp } from "../context/AppContext";
-import { addUserRecord, updateUserRecord } from "../services/firebaseService";
+import { recordLenderPayment } from "../services/firebaseService";
 import { generateReceipt } from "../utils/receiptGenerator";
 
 export function PaymentEntry() {
@@ -35,16 +35,11 @@ export function PaymentEntry() {
         method,
         paymentDate,
         status: "verified", // Lender is entering it directly, so it's verified
-        createdAt: new Date(),
         type: "lender_recorded"
       };
 
-      await addUserRecord(user.uid, "payments", paymentData);
-      
-      if (selectedLoan) {
-        const newBalance = Math.max(0, selectedLoan.balance - Number(amount));
-        await updateUserRecord(user.uid, "loans", selectedLoan.id, { balance: newBalance });
-      }
+      // Saves the payment and updates the loan atomically.
+      await recordLenderPayment(user.uid, loanId, paymentData);
       
       setSuccess("Payment saved successfully!");
       await refreshData();

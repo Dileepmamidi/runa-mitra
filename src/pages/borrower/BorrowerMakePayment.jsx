@@ -45,6 +45,7 @@ export function BorrowerMakePayment() {
       
       const paymentData = {
         borrowerId: selectedLoan._borrowerId,
+        borrowerUid: user.uid,
         loanId,
         amount: Number(amount),
         method: paymentMethod,

@@ -7,7 +7,7 @@ import { useApp } from "../context/AppContext";
 import { addUserRecord, uploadEvidence, createBorrowerLink } from "../services/firebaseService";
 
 export function AddBorrower() {
-  const { user, refreshData } = useApp();
+  const { user, lender, refreshData } = useApp();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -66,7 +66,7 @@ export function AddBorrower() {
       const docRef = await addUserRecord(user.uid, "borrowers", borrowerData);
       
       // 2b. Create borrower link for role-based login
-      await createBorrowerLink(formData.mobile, user.uid, docRef.id);
+      await createBorrowerLink(formData.mobile, user.uid, docRef.id, { lenderName: lender.name, borrowerName: formData.name });
       
       // 3. Refresh context and navigate
       await refreshData();

@@ -1,0 +1,152 @@
+rules_version = '2';
+
+// Runa Mitra Firestore rules.
+//
+// Data lives under users/{lenderUid}/... and belongs to that lender.
+// A borrower can read a lender's record only when the lender's app has stamped
+// it with borrowerUid == the borrower's auth uid, which happens only after the
+// borrower accepted an invitation sent to their OTP-verified phone number.
+// The lender's borrowers collection (private notes, contacts) is never
+// readable by borrowers.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isUser(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function myPhone() {
+      return signedIn() ? request.auth.token.get('phone_number', '') : '';
+    }
+
+    function onlyChanges(keys) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
+    }
+
+    function borrowerPath(lenderUid, borrowerId) {
+      return /databases/$(database)/documents/users/$(lenderUid)/borrowers/$(borrowerId);
+    }
+
+    function isLinkedBorrower(lenderUid, borrowerId) {
+      return signedIn()
+        && exists(borrowerPath(lenderUid, borrowerId))
+        && get(borrowerPath(lenderUid, borrowerId)).data.get('linkedUid', null) == request.auth.uid;
+    }
+
+    function loanBelongsTo(lenderUid, loanId, borrowerId) {
+      return exists(/databases/$(database)/documents/users/$(lenderUid)/loans/$(loanId))
+        && get(/databases/$(database)/documents/users/$(lenderUid)/loans/$(loanId)).data.borrowerId == borrowerId;
+    }
+
+    function invitePath(lenderUid, borrowerId) {
+      return /databases/$(database)/documents/borrowerLinks/$(myPhone())/invites/$(lenderUid + '_' + borrowerId);
+    }
+
+    function hasPendingInvite(lenderUid, borrowerId) {
+      return myPhone() != ''
+        && exists(invitePath(lenderUid, borrowerId))
+        && get(invitePath(lenderUid, borrowerId)).data.status == 'pending'
+        && get(invitePath(lenderUid, borrowerId)).data.lenderUid == lenderUid;
+    }
+
+    // Invitations created by older app versions (array on borrowerLinks/{phone}).
+    // Also require the lender's own record to carry this phone number.
+    function hasLegacyInvite(lenderUid, borrowerId, borrower) {
+      let legacyPath = /databases/$(database)/documents/borrowerLinks/$(myPhone());
+      let mobile = string(borrower.get('mobile', ''));
+      return myPhone() != ''
+        && exists(legacyPath)
+        && {'lenderUid': lenderUid, 'borrowerId': borrowerId} in get(legacyPath).data.get('lenders', [])
+        && (mobile == myPhone() || '+91' + mobile == myPhone());
+    }
+
+    match /users/{lenderUid} {
+      // Lender: full control of their own records.
+      allow read, write: if isUser(lenderUid);
+
+      match /{document=**} {
+        allow read, write: if isUser(lenderUid);
+      }
+
+      // Borrower accepts an invitation: may set only linkedUid/linkedAt to
+      // themselves, only once.
+      match /borrowers/{borrowerId} {
+        allow update: if signedIn()
+          && !isUser(lenderUid)
+          && onlyChanges(['linkedUid', 'linkedAt'])
+          && request.resource.data.linkedUid == request.auth.uid
+          && resource.data.get('linkedUid', null) == null
+          && (hasPendingInvite(lenderUid, borrowerId) || hasLegacyInvite(lenderUid, borrowerId, resource.data));
+      }
+
+      // Records shared with the linked borrower.
+      match /{coll}/{docId} {
+        allow read: if signedIn()
+          && coll in ['loans', 'payments', 'agreements', 'reminders', 'evidence', 'messages']
+          && resource.data.get('borrowerUid', null) == request.auth.uid;
+      }
+
+      // Borrower reports a payment. It stays pending until the lender approves.
+      match /payments/{paymentId} {
+        allow create: if signedIn()
+          && !isUser(lenderUid)
+          && request.resource.data.borrowerUid == request.auth.uid
+          && request.resource.data.status == 'pending_verification'
+          && request.resource.data.type == 'borrower_submitted'
+          && request.resource.data.amount is number
+          && request.resource.data.amount > 0
+          && isLinkedBorrower(lenderUid, request.resource.data.borrowerId)
+          && loanBelongsTo(lenderUid, request.resource.data.loanId, request.resource.data.borrowerId);
+      }
+
+      // Borrower sends an extension request, clarification or dispute.
+      match /messages/{messageId} {
+        allow create: if signedIn()
+          && !isUser(lenderUid)
+          && request.resource.data.borrowerUid == request.auth.uid
+          && request.resource.data.status == 'pending'
+          && request.resource.data.type in ['extension_request', 'clarification', 'dispute']
+          && isLinkedBorrower(lenderUid, request.resource.data.borrowerId)
+          && loanBelongsTo(lenderUid, request.resource.data.loanId, request.resource.data.borrowerId);
+      }
+    }
+
+    // Invitations addressed to a phone number.
+    match /borrowerLinks/{phone} {
+      // Legacy array format: readable by the owner of that phone; no new writes.
+      allow read: if signedIn() && phone == myPhone();
+
+      match /invites/{inviteId} {
+        allow read: if signedIn()
+          && (phone == myPhone() || resource.data.lenderUid == request.auth.uid);
+
+        // Only a lender, only for their own borrower record.
+        allow create, update: if signedIn()
+          && request.resource.data.lenderUid == request.auth.uid
+          && inviteId == request.auth.uid + '_' + request.resource.data.borrowerId
+          && request.resource.data.status == 'pending'
+          && exists(/databases/$(database)/documents/users/$(request.auth.uid)/borrowers/$(request.resource.data.borrowerId));
+
+        // The invited person accepts or declines.
+        allow update: if signedIn()
+          && phone == myPhone()
+          && onlyChanges(['status', 'acceptedBy', 'acceptedAt'])
+          && request.resource.data.status in ['accepted', 'declined']
+          && request.resource.data.acceptedBy == request.auth.uid;
+
+        allow delete: if signedIn() && resource.data.lenderUid == request.auth.uid;
+      }
+    }
+
+    // Each signed-in person's list of accepted lender links (pointers only).
+    match /borrowerAccess/{uid} {
+      allow read, write: if isUser(uid);
+    }
+
+    // Everything else is denied by default.
+  }
+}

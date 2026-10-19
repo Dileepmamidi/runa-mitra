@@ -43,6 +43,7 @@ export function BorrowerExtensionRequest() {
       
       const requestData = {
         borrowerId: selectedLoan._borrowerId,
+        borrowerUid: user.uid,
         loanId,
         reason,
         requestedDays: Number(requestedDays),

@@ -44,10 +44,13 @@ import { BorrowerMakePayment } from "./pages/borrower/BorrowerMakePayment";
 // Public Pages
 import { LanguageSelection } from "./pages/LanguageSelection";
 import { Login } from "./pages/Login";
+import { Invitations } from "./pages/Invitations";
 import { Splash } from "./pages/Splash";
 
 export default function App() {
-  const { userRole, authLoading } = useApp();
+  const { userRole, authLoading, pendingInvites, availableRoles } = useApp();
+  // A new user whose only connection is a pending invitation sees it first.
+  const invitationsFirst = pendingInvites.length > 0 && availableRoles.length === 0;
 
   if (authLoading) {
     return (
@@ -69,9 +72,11 @@ export default function App() {
 
       {/* Protected routes — must be logged in */}
       <Route element={<AuthGuard />}>
-        
+        <Route path="/invitations" element={<Invitations />} />
+        {invitationsFirst && <Route path="*" element={<Navigate to="/invitations" replace />} />}
+
         {/* LENDER ROUTES */}
-        {userRole === "lender" ? (
+        {invitationsFirst ? null : userRole === "lender" ? (
           <Route element={<AppFrame />}>
             <Route path="/profile-setup" element={<ProfileSetup />} />
             <Route path="/home" element={<HomeDashboard />} />

@@ -3,6 +3,7 @@ import { ArrowRight, Clock, FileText, AlertCircle } from "lucide-react";
 import { useApp } from "../../context/AppContext";
 import { currency } from "../../utils/loanMath";
 import { Card } from "../../components/Card";
+import { calculateLoan, countsAsPaid, paiseToRupees } from "../../utils/interestEngine";
 import { useEffect } from "react";
 
 export function BorrowerHome() {
@@ -13,10 +14,13 @@ export function BorrowerHome() {
   }, []);
 
   const totalPrincipal = loans.reduce((sum, loan) => sum + Number(loan.principal || 0), 0);
-  const totalBalance = loans.reduce((sum, loan) => sum + Number(loan.balance || 0), 0);
-  const totalPaid = payments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
+  // Amounts come from the interest engine; loans with unclear terms are left
+  // out of the total instead of being guessed.
+  const results = loans.map((loan) => ({ loan, calc: calculateLoan(loan, payments.filter((p) => p.loanId === loan.id)) }));
+  const totalBalance = results.reduce((sum, r) => sum + (r.calc.status === "ok" ? paiseToRupees(r.calc.outstandingPaise) : 0), 0);
+  const totalPaid = payments.filter(countsAsPaid).reduce((sum, p) => sum + Number(p.amount || 0), 0);
 
-  const activeLoans = loans.filter(l => l.balance > 0);
+  const activeLoans = results.filter((r) => r.calc.status !== "ok" || !r.calc.settled).map((r) => r.loan);
 
   return (
     <div className="mx-auto max-w-2xl">
