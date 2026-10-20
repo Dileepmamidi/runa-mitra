@@ -5,7 +5,7 @@ import { useCopy } from "../../i18n/useCopy";
 import { countsAsPaid, formatPaise, paiseToRupees, rupeesToPaise } from "../../utils/interestEngine";
 import { generateReceipt } from "../../utils/receiptGenerator";
 import { Badge, Button, Card, EmptyState, Notice, Screen, Section } from "../../ui";
-import { dateKeyOf, principalPaiseOf, toMillis, useBorrowerLoans } from "./borrowerData";
+import { dateKeyOf, principalPaiseOf, toMillis, useBorrowerLoans, loanLabel } from "./borrowerData";
 import { borrowerSharedCopy } from "./BorrowerShared.copy";
 import { borrowerPaymentHistoryCopy } from "./BorrowerPaymentHistory.copy";
 
@@ -51,7 +51,7 @@ export function BorrowerPaymentHistory() {
         const counted = payments.filter(countsAsPaid);
 
         return (
-          <Section key={`${loan.lenderUid}_${loan.id}`} title={sh.loanFrom(loan.lenderName)}>
+          <Section key={`${loan.lenderUid}_${loan.id}`} title={`${sh.loanFrom(loan.lenderName)} · ${loanLabel(loan, sh)}`}>
             <div className="grid gap-3">
               {calc.status !== "ok" && <Notice tone="warning" title={s.unclearTitle}>{s.unclearText}</Notice>}
 

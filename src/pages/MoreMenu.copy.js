@@ -1,6 +1,11 @@
 export const moreMenuCopy = {
   en: {
     title: "More",
+    plan: "Plan",
+    planName: (name) => `${name} plan`,
+    planHint: "See plans and borrower limits",
+    planNames: { simple: "Simple", regular: "Regular", advanced: "Advanced" },
+    familyView: "Family view (read only)",
     money: "Money",
     records: "Records",
     insights: "Insights",
@@ -22,11 +27,15 @@ export const moreMenuCopy = {
     backup: "Backup",
     family: "Family access",
     language: "Language",
-    soon: "Coming soon",
     languageSaveError: "Language changed on this phone, but could not be saved to your account."
   },
   te: {
     title: "మరిన్ని",
+    plan: "ప్లాన్",
+    planName: (name) => `${name} ప్లాన్`,
+    planHint: "ప్లాన్‌లు, అప్పుదారుల పరిమితి చూడండి",
+    planNames: { simple: "సింపుల్", regular: "రెగ్యులర్", advanced: "అడ్వాన్స్‌డ్" },
+    familyView: "కుటుంబ వీక్షణ (చూడటానికి మాత్రమే)",
     money: "డబ్బు",
     records: "రికార్డులు",
     insights: "సారాంశాలు",
@@ -48,7 +57,6 @@ export const moreMenuCopy = {
     backup: "బ్యాకప్",
     family: "కుటుంబ యాక్సెస్",
     language: "భాష",
-    soon: "త్వరలో",
     languageSaveError: "ఈ ఫోన్‌లో భాష మారింది, కానీ మీ ఖాతాలో సేవ్ కాలేదు."
   }
 };

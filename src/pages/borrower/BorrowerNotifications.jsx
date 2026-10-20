@@ -1,10 +1,10 @@
 import { useMemo } from "react";
-import { AlertTriangle, Bell, CalendarClock, CheckCircle2, MessageCircle, ReceiptText, Send, XCircle } from "lucide-react";
+import { AlertTriangle, Bell, BellRing, CalendarClock, CheckCircle2, FileSignature, MessageCircle, ReceiptText, Scale, Send, ShieldCheck, XCircle } from "lucide-react";
 import { useApp } from "../../context/AppContext";
 import { useCopy } from "../../i18n/useCopy";
 import { countsAsPaid, formatPaise, rupeesToPaise } from "../../utils/interestEngine";
 import { Card, EmptyState, Screen, Section } from "../../ui";
-import { dateKeyOf, isAnswered, openLoans, requestState, toMillis, useBorrowerLoans } from "./borrowerData";
+import { collateralState, dateKeyOf, isAnswered, openLoans, pendingAcknowledgements, requestState, toMillis, useBorrowerLoans } from "./borrowerData";
 import { borrowerSharedCopy } from "./BorrowerShared.copy";
 import { borrowerNotificationsCopy } from "./BorrowerNotifications.copy";
 
@@ -16,7 +16,7 @@ const tones = {
   ink: "bg-canvas text-ink-soft"
 };
 
-function UpdateCard({ icon: Icon, tone, text, date, to }) {
+function UpdateCard({ icon: Icon, tone, text, detail, date, to }) {
   return (
     <Card to={to}>
       <div className="flex items-start gap-3">
@@ -25,6 +25,7 @@ function UpdateCard({ icon: Icon, tone, text, date, to }) {
         </span>
         <div className="min-w-0">
           <p className="text-[16px] font-bold leading-snug text-ink">{text}</p>
+          {detail && <p className="mt-1 text-[15px] font-semibold text-ink-soft">{detail}</p>}
           {date && <p className="mt-1 text-[14px] font-medium text-ink-muted">{date}</p>}
         </div>
       </div>
@@ -33,7 +34,7 @@ function UpdateCard({ icon: Icon, tone, text, date, to }) {
 }
 
 export function BorrowerNotifications() {
-  const { payments, messages } = useApp();
+  const { payments, messages, reminders, agreements, collateral, user } = useApp();
   const s = useCopy(borrowerNotificationsCopy);
   const sh = useCopy(borrowerSharedCopy);
   const items = useBorrowerLoans();
@@ -54,6 +55,41 @@ export function BorrowerNotifications() {
         };
       }),
     [items, s, sh]
+  );
+
+  // Loan changes and agreements the borrower has not acknowledged yet.
+  const waiting = useMemo(
+    () => pendingAcknowledgements(items, agreements, user?.uid)
+      .sort((a, b) => toMillis(b.when) - toMillis(a.when))
+      .map((p, i) => {
+        const lender = sh.lender(p.loan.lenderName);
+        const key = dateKeyOf(p.when);
+        return p.kind === "change"
+          ? { key: `ackc_${p.loan.lenderUid}_${p.loan.id}_${i}`, icon: Scale, tone: "amber", text: s.ackChange(lender), date: key ? sh.date(key) : "", to: `/loans/${p.loan.id}` }
+          : { key: `acka_${p.loan.lenderUid}_${p.agreement.id}`, icon: FileSignature, tone: "amber", text: s.ackAgreement(lender), date: key ? sh.date(key) : "", to: "/documents" };
+      }),
+    [items, agreements, user, s, sh]
+  );
+
+  // Reminders the lender wrote (cancelled ones are hidden).
+  const lenderReminders = useMemo(
+    () => reminders
+      .filter((r) => String(r.status || "").toLowerCase() !== "cancelled")
+      .sort((a, b) => toMillis(b.createdAt) - toMillis(a.createdAt))
+      .map((r, i) => {
+        const due = dateKeyOf(r.dueDate);
+        const created = dateKeyOf(r.createdAt);
+        return {
+          key: `rem_${r.lenderUid}_${r.id || i}`,
+          icon: BellRing,
+          tone: "brand",
+          text: (typeof r.message === "string" && r.message.trim()) || s.reminderDefault,
+          detail: due ? s.reminderDue(sh.date(due)) : undefined,
+          date: created ? sh.date(created) : "",
+          to: r.loanId && items.some((x) => x.loan.id === r.loanId) ? `/loans/${r.loanId}` : undefined
+        };
+      }),
+    [reminders, items, s, sh]
   );
 
   // Everything else, newest first, built only from stored records.
@@ -101,8 +137,18 @@ export function BorrowerNotifications() {
       }
     }
 
+    for (const c of collateral) {
+      if (collateralState(c) !== "returned") continue;
+      push(`col_${c.lenderUid}_${c.id}`, at(c.returnedAt, c.returnedDate, c.updatedAt), {
+        icon: ShieldCheck,
+        tone: "brand",
+        text: s.collateralReturned(c.description || ""),
+        to: c.loanId && items.some((x) => x.loan.id === c.loanId) ? `/loans/${c.loanId}` : "/documents"
+      });
+    }
+
     return list.sort((a, b) => b.ms - a.ms);
-  }, [payments, messages, s, sh]);
+  }, [payments, messages, collateral, items, s, sh]);
 
   return (
     <Screen title={s.title} subtitle={s.subtitle}>
@@ -110,6 +156,22 @@ export function BorrowerNotifications() {
         <Section title={s.dueSoon}>
           <div className="grid gap-3">
             {dueAlerts.map(({ key, ...rest }) => <UpdateCard key={key} {...rest} />)}
+          </div>
+        </Section>
+      )}
+
+      {waiting.length > 0 && (
+        <Section title={s.waiting}>
+          <div className="grid gap-3">
+            {waiting.map(({ key, ...rest }) => <UpdateCard key={key} {...rest} />)}
+          </div>
+        </Section>
+      )}
+
+      {lenderReminders.length > 0 && (
+        <Section title={s.reminders}>
+          <div className="grid gap-3">
+            {lenderReminders.map(({ key, ...rest }) => <UpdateCard key={key} {...rest} />)}
           </div>
         </Section>
       )}

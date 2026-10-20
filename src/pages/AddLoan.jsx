@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { Camera, FileImage, Mic, PenLine, Save, UserPlus } from "lucide-react";
 import { borrowerName } from "../components/BorrowerCard";
 import { useApp } from "../context/AppContext";
@@ -149,17 +149,23 @@ export function AddLoan() {
   const [borrowerId, setBorrowerId] = useState(
     borrowers.some((b) => b.id === preselected) ? preselected : borrowers.length === 1 ? borrowers[0].id : ""
   );
-  const [values, setValues] = useState({
-    principal: "",
-    rate: "",
-    rateUnit: "month",
+  // Values confirmed on the Scan old note screen (read once; the lender must still check them).
+  const location = useLocation();
+  const [prefill] = useState(() => {
+    const p = location.state?.prefill;
+    return p && typeof p === "object" ? p : null;
+  });
+  const [values, setValues] = useState(() => ({
+    principal: prefill && Number(prefill.principal) > 0 ? String(prefill.principal) : "",
+    rate: prefill && prefill.rate != null && prefill.rate !== "" && Number(prefill.rate) >= 0 ? String(prefill.rate) : "",
+    rateUnit: prefill?.rateUnit === "year" ? "year" : "month",
     method: "simple",
     cycle: "monthly",
-    loanDate: toDateKey(new Date()),
+    loanDate: toDateKey(prefill?.loanDate) || toDateKey(new Date()),
     dueDate: ""
-  });
+  }));
   const [securityType, setSecurityType] = useState("Trust only");
-  const [notes, setNotes] = useState("");
+  const [notes, setNotes] = useState(() => (typeof prefill?.notes === "string" ? prefill.notes : ""));
 
   const [guarantorName, setGuarantorName] = useState("");
   const [guarantorMobile, setGuarantorMobile] = useState("");
@@ -252,6 +258,7 @@ export function AddLoan() {
 
   return (
     <Screen title={s.title} subtitle={s.subtitle} back>
+      {prefill && <Notice tone="warning">{s.prefillNotice}</Notice>}
       <Section title={s.details}>
         <Card className="grid gap-4">
           <Field label={f.borrower}>

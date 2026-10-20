@@ -1,0 +1,55 @@
+// Text shared by the borrower loan-details and documents screens for
+// guarantors, collateral and in-app acknowledgements.
+export const borrowerLoanRecordsCopy = {
+  en: {
+    guarantors: "Guarantor",
+    guarantorNotVerified: "Recorded by your lender. Not verified by the app.",
+    relationship: "Relation",
+    amount: "Amount covered",
+    scope: "What they cover",
+    fullLoan: "The full loan",
+    collateral: "Item kept as security",
+    type: "Type",
+    value: "Value written by lender",
+    status: "Status",
+    held: "With the lender",
+    returned: "Returned to you",
+    returnedOn: (d) => `Returned on ${d}`,
+    noDescription: "No description written",
+    collateralTypes: { gold: "Gold", land: "Land papers", vehicle: "Vehicle", document: "Document", cheque: "Cheque", other: "Other" },
+    // Acknowledgement button and confirmation
+    ackConfirmTitle: "Before you agree",
+    ackConfirmText: "Pressing \"Yes, I agree\" saves a note in this app that you have seen this. It is not a legal signature or an e-signature. Your lender will see it.",
+    ackYes: "Yes, I agree",
+    ackCancel: "Go back",
+    ackError: "Could not save. Please check your internet and try again.",
+    ackSaving: "Saving…",
+    acknowledgedOn: (d) => `You acknowledged on ${d}`,
+    acknowledged: "You acknowledged this"
+  },
+  te: {
+    guarantors: "హామీదారు",
+    guarantorNotVerified: "రుణదాత నమోదు చేశారు. యాప్ ఈ వివరాలను నిర్ధారించలేదు.",
+    relationship: "సంబంధం",
+    amount: "హామీ మొత్తం",
+    scope: "దేనికి హామీ",
+    fullLoan: "మొత్తం అప్పుకు",
+    collateral: "తాకట్టు పెట్టిన వస్తువు",
+    type: "రకం",
+    value: "రుణదాత రాసిన విలువ",
+    status: "ఇప్పుడు ఎక్కడ ఉంది",
+    held: "రుణదాత దగ్గర ఉంది",
+    returned: "మీకు తిరిగి ఇచ్చారు",
+    returnedOn: (d) => `${d} న తిరిగి ఇచ్చారు`,
+    noDescription: "వివరణ రాయలేదు",
+    collateralTypes: { gold: "బంగారం", land: "భూమి పత్రాలు", vehicle: "వాహనం", document: "పత్రం", cheque: "చెక్కు", other: "ఇతరం" },
+    ackConfirmTitle: "ఒప్పుకునే ముందు",
+    ackConfirmText: "\"అవును, ఒప్పుకుంటున్నాను\" నొక్కితే, మీరు ఇది చూశారని ఈ యాప్‌లో ఒక గుర్తు మాత్రమే నమోదవుతుంది. ఇది చట్టపరమైన సంతకం కాదు, ఈ-సంతకం కూడా కాదు. మీ రుణదాతకు ఇది కనిపిస్తుంది.",
+    ackYes: "అవును, ఒప్పుకుంటున్నాను",
+    ackCancel: "వెనక్కి",
+    ackError: "నమోదు కాలేదు. ఇంటర్నెట్ చూసుకుని మళ్ళీ ప్రయత్నించండి.",
+    ackSaving: "నమోదు అవుతోంది…",
+    acknowledgedOn: (d) => `మీరు ${d} న ఒప్పుకున్నారు`,
+    acknowledged: "మీరు దీనిని ఒప్పుకున్నారు"
+  }
+};

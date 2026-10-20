@@ -27,7 +27,14 @@ export const agreementCopy = {
     saved_list: "Saved agreements",
     savedOn: (d) => `Saved on ${d}`,
     noSaved: "No agreements saved yet.",
-    unknown: "Unknown borrower"
+    unknown: "Unknown borrower",
+    version: (n) => `Version ${n}`,
+    newVersion: (n) => `This loan already has an agreement. Saving makes version ${n}; the older one stays in your records, marked as replaced.`,
+    replaced: "Replaced by a newer version",
+    ackDone: (d) => (d ? `Borrower acknowledged in the app on ${d}` : "Borrower acknowledged in the app"),
+    ackPending: "Borrower has not acknowledged yet",
+    ackNote: "A borrower's acknowledgement is a note in the app, not a verified electronic signature.",
+    securityIncluded: (g, c) => `The paper will also list ${g} guarantor record(s) and ${c} security item record(s) for this loan.`
   },
   te: {
     title: "రుణ ఒప్పందం",
@@ -56,7 +63,14 @@ export const agreementCopy = {
     saved_list: "సేవ్ అయిన ఒప్పందాలు",
     savedOn: (d) => `${d} న సేవ్ అయింది`,
     noSaved: "ఇంకా ఒప్పందాలు సేవ్ కాలేదు.",
-    unknown: "తెలియని అప్పుదారు"
+    unknown: "తెలియని అప్పుదారు",
+    version: (n) => `${n}వ ప్రతి`,
+    newVersion: (n) => `ఈ రుణానికి ఇప్పటికే ఒప్పందం ఉంది. సేవ్ చేస్తే ${n}వ ప్రతి తయారవుతుంది; పాతది మీ రికార్డుల్లో "మార్చబడింది" అని ఉంటుంది.`,
+    replaced: "కొత్త ప్రతితో మార్చబడింది",
+    ackDone: (d) => (d ? `అప్పుదారు ${d} న యాప్‌లో ఒప్పుకున్నారు` : "అప్పుదారు యాప్‌లో ఒప్పుకున్నారు"),
+    ackPending: "అప్పుదారు ఇంకా ఒప్పుకోలేదు",
+    ackNote: "అప్పుదారు ఒప్పుకోలు యాప్‌లో ఒక గుర్తు మాత్రమే, ధృవీకరించిన ఎలక్ట్రానిక్ సంతకం కాదు.",
+    securityIncluded: (g, c) => `ఈ కాగితంలో ఈ రుణానికి సంబంధించిన ${g} హామీదారు వివరాలు, ${c} తాకట్టు వివరాలు కూడా ఉంటాయి.`
   }
 };
 
@@ -78,6 +92,17 @@ export const agreementPaperCopy = {
     borrowerSign: "Borrower's signature",
     lenderSign: "Lender's signature",
     witnessSign: "Witness's signature",
+    version: (n) => `Version ${n}`,
+    supersedes: (d) => (d ? `This version replaces the agreement dated ${d}.` : "This version replaces an earlier agreement for the same loan."),
+    guarantorsTitle: "Guarantor(s)",
+    guarantorLine: ({ name, relationship, amount, scope }) =>
+      `${name || "Name not recorded"}${relationship ? ` (${relationship})` : ""}${amount ? `, guarantee amount ${amount}` : ""}${scope ? `, covers: ${scope}` : ""}.`,
+    guarantorNote: "Guarantor details are written by the lender and are not verified by the app.",
+    collateralTitle: "Security item(s)",
+    collateralLine: ({ description, type, value, returned }) =>
+      `${description || "Description not recorded"}${type ? ` (${type})` : ""}${value ? `, value written as ${value}` : ""}. ${returned ? `Returned${returned === true ? "" : ` on ${returned}`}.` : "Held by the lender."}`,
+    collateralTypes: { gold: "gold", land: "land papers", vehicle: "vehicle", document: "document", cheque: "cheque", other: "other" },
+    fullLoan: "the full loan",
     note: "This is a record of the agreement made in the Runa Mitra app. It does not by itself guarantee legal enforceability. Signature images are uploaded pictures, not verified e-signatures."
   },
   te: {
@@ -95,6 +120,17 @@ export const agreementPaperCopy = {
     borrowerSign: "అప్పుదారు సంతకం",
     lenderSign: "రుణదాత సంతకం",
     witnessSign: "సాక్షి సంతకం",
+    version: (n) => `${n}వ ప్రతి`,
+    supersedes: (d) => (d ? `ఈ ప్రతి ${d} నాటి ఒప్పందం స్థానంలో వస్తుంది.` : "ఈ ప్రతి ఇదే రుణానికి చెందిన పాత ఒప్పందం స్థానంలో వస్తుంది."),
+    guarantorsTitle: "హామీదారు(లు)",
+    guarantorLine: ({ name, relationship, amount, scope }) =>
+      `${name || "పేరు నమోదు కాలేదు"}${relationship ? ` (${relationship})` : ""}${amount ? `, హామీ మొత్తం ${amount}` : ""}${scope ? `, హామీ: ${scope}` : ""}.`,
+    guarantorNote: "హామీదారు వివరాలు రుణదాత రాసినవి, యాప్ వీటిని ధృవీకరించలేదు.",
+    collateralTitle: "తాకట్టు వస్తువు(లు)",
+    collateralLine: ({ description, type, value, returned }) =>
+      `${description || "వివరణ నమోదు కాలేదు"}${type ? ` (${type})` : ""}${value ? `, రాసిన విలువ ${value}` : ""}. ${returned ? (returned === true ? "తిరిగి ఇచ్చారు." : `${returned} న తిరిగి ఇచ్చారు.`) : "రుణదాత దగ్గర ఉంది."}`,
+    collateralTypes: { gold: "బంగారం", land: "భూమి పత్రాలు", vehicle: "వాహనం", document: "పత్రం", cheque: "చెక్కు", other: "ఇతరం" },
+    fullLoan: "మొత్తం రుణానికి",
     note: "ఇది రుణ మిత్ర యాప్‌లో చేసిన ఒప్పందానికి రికార్డు. ఇది ఒక్కటే చట్టపరంగా అమలవుతుందని హామీ ఇవ్వదు. సంతకం చిత్రాలు అప్‌లోడ్ చేసిన ఫోటోలు, ధృవీకరించిన ఈ-సంతకాలు కావు."
   }
 };

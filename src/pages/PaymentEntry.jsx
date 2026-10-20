@@ -7,9 +7,10 @@ import { loanBreakdownCopy, loanLabelsCopy } from "../components/LoanBreakdown.c
 import { useApp } from "../context/AppContext";
 import { useCopy } from "../i18n/useCopy";
 import { recordLenderPayment } from "../services/firebaseService";
-import { calculateLoan, formatPaise, rupeesToPaise, toDateKey } from "../utils/interestEngine";
+import { addDays, calculateLoan, formatPaise, rupeesToPaise, termsFromLoan, toDateKey } from "../utils/interestEngine";
 import { generateReceipt } from "../utils/receiptGenerator";
-import { BottomAction, Button, Card, DetailRow, Field, Input, Notice, Screen, Section, Segmented, Select } from "../ui";
+import { BottomAction, Button, Card, DetailRow, Field, Input, Notice, Screen, Section, Segmented, Select, TextArea } from "../ui";
+import { MAX_SAME_CYCLE_DAYS, sameCycleDateOk } from "./RepaymentExtension";
 import { paymentEntryCopy } from "./PaymentEntry.copy";
 
 const METHODS = ["Cash", "UPI", "Bank transfer"];
@@ -30,6 +31,9 @@ export function PaymentEntry() {
   const [paymentDate, setPaymentDate] = useState(today);
   const [method, setMethod] = useState("Cash");
   const [paymentType, setPaymentType] = useState("normal");
+  const [adjust, setAdjust] = useState(false);
+  const [effectiveDate, setEffectiveDate] = useState("");
+  const [adjustReason, setAdjustReason] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [confirming, setConfirming] = useState(false);
@@ -61,12 +65,16 @@ export function PaymentEntry() {
   const amountPaise = rupeesToPaise(amount);
   const amountValid = amount !== "" && Number.isInteger(amountPaise) && amountPaise > 0 && Math.abs(Number(amount) * 100 - amountPaise) < 1e-6;
   const dateKey = toDateKey(paymentDate);
+  const loanStart = selectedLoan ? toDateKey(termsFromLoan(selectedLoan)?.startDate) : null;
+  const effectiveKey = adjust ? toDateKey(effectiveDate) : null;
+  const effectiveOk = !adjust || sameCycleDateOk(effectiveKey, dateKey, loanStart);
+  const countedKey = adjust && effectiveOk ? effectiveKey : dateKey;
 
   // Split preview from the interest engine with this payment added.
   const preview = useMemo(() => {
-    if (!selectedLoan || !amountValid || !dateKey || dateKey > today) return null;
+    if (!selectedLoan || !amountValid || !dateKey || dateKey > today || !effectiveOk) return null;
     const loanPayments = payments.filter((p) => p.loanId === selectedLoan.id);
-    const before = calculateLoan(selectedLoan, loanPayments, dateKey);
+    const before = calculateLoan(selectedLoan, loanPayments, countedKey);
     if (before.status !== "ok") return { ok: false, issues: before.issues };
     const synthetic = {
       id: PREVIEW_ID,
@@ -76,6 +84,7 @@ export function PaymentEntry() {
       method,
       status: "verified",
       type: "lender_recorded",
+      ...(adjust ? { effectiveDate: countedKey } : {}),
       ...(paymentType === "interest_only" ? { paymentType: "interest_only" } : {})
     };
     const after = calculateLoan(selectedLoan, [...loanPayments, synthetic], today);
@@ -91,12 +100,15 @@ export function PaymentEntry() {
       owedAfter: after.outstandingPaise,
       interestOnlyExtra: paymentType === "interest_only" && row.toPrincipalPaise > 0
     };
-  }, [selectedLoan, amountValid, amountPaise, dateKey, today, payments, method, paymentType]);
+  }, [selectedLoan, amountValid, amountPaise, dateKey, countedKey, adjust, effectiveOk, today, payments, method, paymentType]);
 
   const reset = () => {
     setSaved(null);
     setAmount("");
     setPaymentType("normal");
+    setAdjust(false);
+    setEffectiveDate("");
+    setAdjustReason("");
     setConfirming(false);
     setError("");
   };
@@ -114,6 +126,8 @@ export function PaymentEntry() {
     if (!amountValid) return setError(s.errAmount);
     if (!dateKey) return setError(s.errDate);
     if (dateKey > today) return setError(s.errFuture);
+    if (adjust && !effectiveOk) return setError(s.errEffective);
+    if (adjust && adjustReason.trim().length < 3) return setError(s.errAdjustReason);
     setConfirming(true);
   };
 
@@ -129,11 +143,12 @@ export function PaymentEntry() {
         paymentDate: dateKey,
         status: "verified", // the lender is recording money they received
         type: "lender_recorded",
+        ...(adjust ? { effectiveDate: effectiveKey, adjustmentReason: adjustReason.trim() } : {}),
         ...(paymentType === "interest_only" ? { paymentType: "interest_only" } : {})
       };
       // Saves the payment and updates the loan atomically.
-      await recordLenderPayment(user.uid, loanId, paymentData);
-      setSaved({ ...paymentData, borrowerName: borrowerName(selectedBorrower), principal: selectedLoan.principal });
+      const savedId = await recordLenderPayment(user.uid, loanId, paymentData);
+      setSaved({ ...paymentData, id: savedId, borrowerName: borrowerName(selectedBorrower), principal: selectedLoan.principal });
       setConfirming(false);
       await refreshData();
     } catch (err) {
@@ -165,7 +180,9 @@ export function PaymentEntry() {
               borrowerName: saved.borrowerName,
               principal: saved.principal,
               amountPaid: saved.amount,
-              method: methodLabel(saved.method)
+              method: methodLabel(saved.method),
+              recordedBy: "lender",
+              ...(saved.id ? { referenceId: saved.id } : {})
             })
           }
         >
@@ -227,6 +244,31 @@ export function PaymentEntry() {
           />
           <p className="mt-1.5 text-[13px] font-medium text-ink-muted">{s.typeHelp}</p>
         </div>
+        <div className="grid gap-3 rounded-xl bg-canvas p-3">
+          <label className="flex items-start gap-3">
+            <input type="checkbox" className="mt-0.5 h-6 w-6 shrink-0 accent-brand-600" checked={adjust} onChange={(e) => { setConfirming(false); setAdjust(e.target.checked); }} />
+            <span>
+              <span className="block text-[15px] font-bold text-ink">{s.adjustToggle}</span>
+              <span className="mt-0.5 block text-[13px] font-medium text-ink-muted">{s.adjustHelp}</span>
+            </span>
+          </label>
+          {adjust && (
+            <>
+              <Field label={s.effectiveDate} hint={s.effectiveHelp} error={effectiveDate && !effectiveOk ? s.errEffective : ""}>
+                <Input
+                  type="date"
+                  value={effectiveDate}
+                  min={dateKey ? [addDays(dateKey, -MAX_SAME_CYCLE_DAYS), loanStart].filter(Boolean).sort().pop() : undefined}
+                  max={dateKey ? addDays(dateKey, -1) : undefined}
+                  onChange={touch(setEffectiveDate)}
+                />
+              </Field>
+              <Field label={s.adjustReason}>
+                <TextArea value={adjustReason} placeholder={s.adjustReasonPlaceholder} onChange={touch(setAdjustReason)} />
+              </Field>
+            </>
+          )}
+        </div>
       </Card>
 
       {selectedLoan && (
@@ -266,6 +308,8 @@ export function PaymentEntry() {
             <DetailRow label={s.confirmDate} value={dateKey} />
             <DetailRow label={s.confirmMethod} value={methodLabel(method)} />
             <DetailRow label={s.confirmType} value={typeLabel} />
+            {adjust && <DetailRow label={s.confirmEffective} value={effectiveKey} />}
+            {adjust && <DetailRow label={s.confirmAdjustReason} value={adjustReason.trim()} />}
             <div className="mt-3 grid gap-2">
               <Button size="lg" icon={Save} onClick={handleSave} loading={loading}>{loading ? s.saving : s.confirmYes}</Button>
               <Button variant="secondary" onClick={() => setConfirming(false)} disabled={loading}>{s.confirmNo}</Button>

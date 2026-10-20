@@ -180,7 +180,7 @@ export async function declineInvite(user, invite) {
 
 // Records the borrower may see. Evidence is shared unless it is an identity
 // document or the lender marked it private.
-const SHARED_COLLECTIONS = ["loans", "payments", "agreements", "reminders", "messages", "evidence"];
+export const SHARED_COLLECTIONS = ["loans", "payments", "agreements", "reminders", "messages", "evidence", "guarantors", "collateral"];
 const PRIVATE_EVIDENCE = ["aadhaar", "identity", "id proof"];
 
 export function isBorrowerVisible(name, record) {
@@ -343,4 +343,109 @@ export async function decideExtensionRequest(lenderUid, messageId, { approve, re
       });
     }
   });
+}
+
+// ---------- Acknowledgements ----------
+
+// A linked borrower (or the lender) records that they have seen and accept a
+// loan change or an agreement version. This is an in-app acknowledgement, not a
+// verified electronic signature.
+export async function addAcknowledgement(lenderUid, collectionName, docId, ack) {
+  return updateDoc(doc(db, "users", lenderUid, collectionName, docId), {
+    acknowledgements: arrayUnion({ ...ack, at: new Date().toISOString() })
+  });
+}
+
+// ---------- Plans ----------
+
+export async function getSubscription(uid) {
+  const snap = await getDoc(doc(db, "users", uid, "subscription", "current"));
+  return snap.exists() ? snap.data() : null;
+}
+
+// ---------- Family access (read-only) ----------
+
+export async function inviteFamilyMember(lenderUid, phoneNumber, details = {}) {
+  const phone = normalizePhone(phoneNumber);
+  if (!phone) throw new Error("Phone number is required.");
+  await setDoc(doc(db, "familyLinks", phone, "invites", lenderUid), {
+    lenderUid,
+    lenderName: details.lenderName || "",
+    memberName: details.memberName || "",
+    permission: "view",
+    status: "pending",
+    createdAt: serverTimestamp()
+  });
+  return phone;
+}
+
+export async function revokeFamilyInvite(lenderUid, phoneNumber, memberUid) {
+  const phone = normalizePhone(phoneNumber);
+  const batch = writeBatch(db);
+  batch.set(doc(db, "familyLinks", phone, "invites", lenderUid), { lenderUid, status: "revoked" }, { merge: true });
+  if (memberUid) batch.delete(doc(db, "users", lenderUid, "familyMembers", memberUid));
+  await batch.commit();
+}
+
+export async function listMyFamilyInvites(phoneNumber) {
+  const phone = normalizePhone(phoneNumber);
+  if (!phone) return [];
+  try {
+    const snap = await getDocs(collection(db, "familyLinks", phone, "invites"));
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  } catch (err) {
+    console.warn("Could not read family invitations", err);
+    return [];
+  }
+}
+
+export async function getFamilyAccess(uid) {
+  const snap = await getDoc(doc(db, "familyAccess", uid));
+  return snap.exists() ? snap.data().links || [] : [];
+}
+
+export async function acceptFamilyInvite(user, invite) {
+  const phone = normalizePhone(user.phoneNumber);
+  const batch = writeBatch(db);
+  batch.set(doc(db, "users", invite.lenderUid, "familyMembers", user.uid), {
+    phone,
+    permission: "view",
+    acceptedAt: serverTimestamp()
+  });
+  batch.update(doc(db, "familyLinks", phone, "invites", invite.lenderUid), {
+    status: "accepted",
+    acceptedBy: user.uid,
+    acceptedAt: serverTimestamp()
+  });
+  batch.set(
+    doc(db, "familyAccess", user.uid),
+    { links: arrayUnion({ lenderUid: invite.lenderUid, lenderName: invite.lenderName || "" }), updatedAt: serverTimestamp() },
+    { merge: true }
+  );
+  await batch.commit();
+}
+
+export async function declineFamilyInvite(user, invite) {
+  const phone = normalizePhone(user.phoneNumber);
+  await updateDoc(doc(db, "familyLinks", phone, "invites", invite.lenderUid), {
+    status: "declined",
+    acceptedBy: user.uid,
+    acceptedAt: serverTimestamp()
+  });
+}
+
+// Family member: read a lender's records (rules allow read-only access).
+export async function loadFamilyView(lenderUid) {
+  const names = ["borrowers", "loans", "payments", "agreements", "guarantors", "collateral"];
+  // If access was removed, Firestore refuses the reads: report that clearly
+  // instead of showing empty lists.
+  const results = await Promise.all(
+    names.map((name) =>
+      listUserCollection(lenderUid, name).catch((err) => {
+        if (err?.code === "permission-denied") throw Object.assign(new Error("access_removed"), { code: "access_removed" });
+        return [];
+      })
+    )
+  );
+  return Object.fromEntries(names.map((name, i) => [name, results[i]]));
 }

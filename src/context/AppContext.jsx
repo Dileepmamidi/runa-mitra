@@ -2,8 +2,14 @@ import { createContext, useContext, useEffect, useMemo, useState, useCallback } 
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { orderBy, where } from "firebase/firestore";
 import { auth } from "../config/firebase";
+import { effectivePlan, planHasFeature } from "../config/plans";
 import {
+  acceptFamilyInvite,
   acceptInvite as acceptInviteRecord,
+  declineFamilyInvite,
+  getFamilyAccess,
+  getSubscription,
+  listMyFamilyInvites,
   declineInvite as declineInviteRecord,
   getBorrowerAccess,
   getUserProfile,
@@ -36,6 +42,9 @@ export function AppProvider({ children }) {
   const [availableRoles, setAvailableRoles] = useState([]);
   const [borrowerLink, setBorrowerLink] = useState(null); // [{ lenderUid, borrowerId, lenderName, borrowerName }]
   const [pendingInvites, setPendingInvites] = useState([]);
+  const [familyLinks, setFamilyLinks] = useState([]); // [{ lenderUid, lenderName }] — lenders whose records I may view
+  const [pendingFamilyInvites, setPendingFamilyInvites] = useState([]);
+  const [subscription, setSubscription] = useState(null);
 
   const [lender, setLender] = useState(defaultLender);
   const [authLoading, setAuthLoading] = useState(true);
@@ -48,17 +57,22 @@ export function AppProvider({ children }) {
   const [agreements, setAgreements] = useState([]);
   const [evidence, setEvidence] = useState([]);
   const [messages, setMessages] = useState([]);
+  const [guarantors, setGuarantors] = useState([]);
+  const [collateral, setCollateral] = useState([]);
 
   const loadLenderData = useCallback(async (uid) => {
     try {
-      const [b, l, p, r, a, e, m] = await Promise.all([
+      const [b, l, p, r, a, e, m, g, c, sub] = await Promise.all([
         listUserCollection(uid, "borrowers"),
         listUserCollection(uid, "loans"),
         listUserCollection(uid, "payments", [orderBy("createdAt", "desc")]),
         listUserCollection(uid, "reminders"),
         listUserCollection(uid, "agreements"),
         listUserCollection(uid, "evidence"),
-        listUserCollection(uid, "messages", [orderBy("createdAt", "desc")])
+        listUserCollection(uid, "messages", [orderBy("createdAt", "desc")]),
+        listUserCollection(uid, "guarantors").catch(() => []),
+        listUserCollection(uid, "collateral").catch(() => []),
+        getSubscription(uid).catch(() => null)
       ]);
       setBorrowers(b);
       setLoans(l);
@@ -67,8 +81,11 @@ export function AppProvider({ children }) {
       setAgreements(a);
       setEvidence(e);
       setMessages(m);
+      setGuarantors(g);
+      setCollateral(c);
+      setSubscription(sub);
       // Share records with borrowers who accepted an invitation.
-      syncBorrowerSharing(uid, b, { loans: l, payments: p, reminders: r, agreements: a, evidence: e, messages: m })
+      syncBorrowerSharing(uid, b, { loans: l, payments: p, reminders: r, agreements: a, evidence: e, messages: m, guarantors: g, collateral: c })
         .catch((err) => console.warn("Borrower sharing sync failed", err));
     } catch (err) {
       console.warn("Could not load lender data", err);
@@ -82,7 +99,7 @@ export function AppProvider({ children }) {
     if (!Array.isArray(links) || links.length === 0 || !borrowerUid) return;
 
     const safe = async (fn) => { try { return await fn(); } catch (err) { console.warn(err); return []; } };
-    const all = { loans: [], payments: [], reminders: [], agreements: [], evidence: [], messages: [] };
+    const all = { loans: [], payments: [], reminders: [], agreements: [], evidence: [], messages: [], guarantors: [], collateral: [] };
     const profiles = [];
 
     for (const link of links) {
@@ -108,6 +125,8 @@ export function AppProvider({ children }) {
     setAgreements(all.agreements);
     setEvidence(all.evidence);
     setMessages(all.messages);
+    setGuarantors(all.guarantors);
+    setCollateral(all.collateral);
   }, []);
 
   // Listen to Firebase Auth state
@@ -127,10 +146,18 @@ export function AppProvider({ children }) {
           setPendingInvites(
             invites.filter((i) => i.status === "pending" && !linkedKeys.has(`${i.lenderUid}_${i.borrowerId}`) && i.lenderUid !== firebaseUser.uid)
           );
+          const famLinks = await getFamilyAccess(firebaseUser.uid).catch(() => []);
+          const famInvites = await listMyFamilyInvites(firebaseUser.phoneNumber);
+          const famKeys = new Set(famLinks.map((x) => x.lenderUid));
+          setFamilyLinks(famLinks);
+          setPendingFamilyInvites(
+            famInvites.filter((i) => i.status === "pending" && !famKeys.has(i.lenderUid) && i.lenderUid !== firebaseUser.uid)
+          );
 
           const roles = [];
           if (profile?.profile) roles.push("lender");
           if (linksArray.length > 0) roles.push("borrower");
+          if (famLinks.length > 0) roles.push("family");
           
           setAvailableRoles(roles);
 
@@ -150,6 +177,8 @@ export function AppProvider({ children }) {
           } else if (roles.includes("borrower")) {
             setUserRole("borrower");
             await loadBorrowerData(linksArray, firebaseUser.uid);
+          } else if (roles.includes("family")) {
+            setUserRole("family");
           } else {
             // New user with no profile and no link. Default to Lender creation path.
             setUserRole("lender");
@@ -163,6 +192,11 @@ export function AppProvider({ children }) {
         setAvailableRoles([]);
         setBorrowerLink(null);
         setPendingInvites([]);
+        setFamilyLinks([]);
+        setPendingFamilyInvites([]);
+        setSubscription(null);
+        setGuarantors([]);
+        setCollateral([]);
         setLender(defaultLender);
         setBorrowers([]);
         setLoans([]);
@@ -197,6 +231,20 @@ export function AppProvider({ children }) {
     if (userRole === "borrower" && borrowerLink?.length > 0) await loadBorrowerData(borrowerLink, user.uid);
   };
 
+  // Someone accepts or declines read-only family access to a lender's records.
+  const respondToFamilyInvite = async (invite, accept) => {
+    if (!user) return;
+    if (accept) await acceptFamilyInvite(user, invite);
+    else await declineFamilyInvite(user, invite);
+    setPendingFamilyInvites((prev) => prev.filter((i) => i.lenderUid !== invite.lenderUid));
+    if (accept) {
+      const links = await getFamilyAccess(user.uid).catch(() => []);
+      setFamilyLinks(links);
+      setAvailableRoles((prev) => (prev.includes("family") ? prev : [...prev, "family"]));
+      if (!availableRoles.includes("lender") && !availableRoles.includes("borrower")) setUserRole("family");
+    }
+  };
+
   // Borrower explicitly accepts or declines a lender's invitation.
   const respondToInvite = async (invite, accept) => {
     if (!user) return;
@@ -224,6 +272,8 @@ export function AppProvider({ children }) {
     setAgreements([]);
     setEvidence([]);
     setMessages([]);
+    setGuarantors([]);
+    setCollateral([]);
     setUserRole(newRole);
     if (newRole === "lender") await loadLenderData(user.uid);
     if (newRole === "borrower" && borrowerLink?.length > 0) await loadBorrowerData(borrowerLink, user.uid);
@@ -249,6 +299,14 @@ export function AppProvider({ children }) {
       borrowerLink,
       pendingInvites,
       respondToInvite,
+      familyLinks,
+      pendingFamilyInvites,
+      respondToFamilyInvite,
+      subscription,
+      plan: effectivePlan(subscription),
+      hasFeature: (feature) => planHasFeature(effectivePlan(subscription), feature),
+      guarantors,
+      collateral,
       authLoading,
       logout,
       // Firestore collections (empty until loaded)
@@ -262,7 +320,7 @@ export function AppProvider({ children }) {
       refreshData,
       switchRole
     }),
-    [appMode, language, user, userRole, availableRoles, borrowerLink, pendingInvites, lender, authLoading, borrowers, loans, payments, reminders, agreements, evidence, messages]
+    [appMode, language, user, userRole, availableRoles, borrowerLink, pendingInvites, familyLinks, pendingFamilyInvites, subscription, guarantors, collateral, lender, authLoading, borrowers, loans, payments, reminders, agreements, evidence, messages]
   );
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

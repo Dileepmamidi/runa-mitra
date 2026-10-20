@@ -9,7 +9,16 @@ export const invitationsCopy = {
     none: "No new invitations.",
     skip: "Later",
     error: "Could not answer the invitation. Please try again.",
-    unknown: "Not given"
+    unknown: "Not given",
+    loanSection: "Your loans",
+    familySection: "View a family member's records",
+    familyIntro: "A family member wants you to be able to look at their loan notebook. You will only be able to see, not change anything. Accept only if you know this person.",
+    familyFrom: "Shared by",
+    familyAs: "Your name (as they wrote it)",
+    familyAccept: "Accept, view only",
+    familyDecline: "No, thank you",
+    familyAccepted: "Accepted. You can now view their records.",
+    viewOnly: "View only"
   },
   te: {
     title: "రుణ ఆహ్వానాలు",
@@ -21,6 +30,15 @@ export const invitationsCopy = {
     none: "కొత్త ఆహ్వానాలు లేవు.",
     skip: "తర్వాత చూస్తాను",
     error: "ఆహ్వానానికి జవాబు పంపలేకపోయాం. మళ్ళీ ప్రయత్నించండి.",
-    unknown: "ఇవ్వలేదు"
+    unknown: "ఇవ్వలేదు",
+    loanSection: "మీ అప్పులు",
+    familySection: "కుటుంబ సభ్యుడి రికార్డులు చూడటం",
+    familyIntro: "ఒక కుటుంబ సభ్యుడు తమ రుణాల పుస్తకాన్ని మీరు చూడాలని కోరుకుంటున్నారు. మీరు చూడగలరు మాత్రమే, ఏదీ మార్చలేరు. ఈ వ్యక్తి మీకు తెలిస్తేనే అంగీకరించండి.",
+    familyFrom: "పంచుకున్నవారు",
+    familyAs: "మీ పేరు (వారు రాసినట్లు)",
+    familyAccept: "అంగీకరిస్తాను, చూడటానికి మాత్రమే",
+    familyDecline: "వద్దు, ధన్యవాదాలు",
+    familyAccepted: "అంగీకరించారు. ఇప్పుడు వారి రికార్డులు చూడవచ్చు.",
+    viewOnly: "చూడటానికి మాత్రమే"
   }
 };

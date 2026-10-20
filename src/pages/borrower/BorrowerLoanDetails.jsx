@@ -1,11 +1,15 @@
-import { useParams } from "react-router-dom";
-import { CalendarClock, HelpCircle, Landmark, Wallet } from "lucide-react";
+import { Link, useParams } from "react-router-dom";
+import { CalendarClock, HelpCircle, Landmark, ThumbsDown, Wallet } from "lucide-react";
 import { useApp } from "../../context/AppContext";
 import { useCopy } from "../../i18n/useCopy";
 import { LoanBreakdown } from "../../components/LoanBreakdown";
+import { VoiceSummary } from "../../components/VoiceSummary";
 import { formatPaise, rupeesToPaise, termsFromLoan, toDateKey } from "../../utils/interestEngine";
 import { Badge, Button, Card, DetailRow, EmptyState, Notice, Screen, Section } from "../../ui";
-import { dateKeyOf, dueText, useBorrowerLoans } from "./borrowerData";
+import {
+  changeAcknowledgement, changeKey, collateralForLoan, dateKeyOf, dueText, guarantorsForLoan, spokenAmountParts, useBorrowerLoans
+} from "./borrowerData";
+import { AcknowledgeButton, AcknowledgedLine, LoanSecurityRecords } from "./BorrowerLoanRecords";
 import { borrowerSharedCopy } from "./BorrowerShared.copy";
 import { borrowerLoanDetailsCopy } from "./BorrowerLoanDetails.copy";
 
@@ -32,7 +36,7 @@ function changeLines(entry) {
 
 export function BorrowerLoanDetails() {
   const { id } = useParams();
-  const { payments } = useApp();
+  const { payments, user, language, guarantors, collateral } = useApp();
   const s = useCopy(borrowerLoanDetailsCopy);
   const sh = useCopy(borrowerSharedCopy);
   const item = useBorrowerLoans().find((x) => x.loan.id === id);
@@ -56,6 +60,26 @@ export function BorrowerLoanDetails() {
   const pauses = (terms.pauses || []).map((p) => ({ from: toDateKey(p.from), to: toDateKey(p.to) })).filter((p) => p.from && p.to);
   const history = Array.isArray(loan.termsHistory) ? [...loan.termsHistory] : [];
   history.sort((a, b) => (dateKeyOf(b?.changedAt || b?.date || b?.at || b?.createdAt) || "").localeCompare(dateKeyOf(a?.changedAt || a?.date || a?.at || a?.createdAt) || ""));
+
+  const loanGuarantors = guarantorsForLoan(loan, guarantors);
+  const loanCollateral = collateralForLoan(loan, collateral);
+
+  // Plain-language summary for reading aloud, from the engine result only.
+  const money = (paise) => s.money(spokenAmountParts(paise));
+  const voiceText = calc.status !== "ok"
+    ? s.voiceUnclear
+    : calc.settled
+      ? s.voiceSettled
+      : [
+        s.voiceOk({
+          principal: money(calc.principalPaise),
+          start: toDateKey(calc.terms?.startDate) ? sh.date(toDateKey(calc.terms.startDate)) : "",
+          interest: money(calc.interestAccruedPaise),
+          paid: money(calc.totalPaidPaise),
+          owed: money(calc.outstandingPaise)
+        }),
+        due ? s.voiceDue(`${dueText(sh, due)}, ${sh.date(due.date)}`) : ""
+      ].filter(Boolean).join(" ");
 
   const formatValue = (field, value) => {
     if (value === undefined || value === null || value === "") return sh.notRecorded;
@@ -90,6 +114,8 @@ export function BorrowerLoanDetails() {
         </Notice>
       )}
 
+      <VoiceSummary text={voiceText} lang={language === "en" ? "en" : "te"} />
+
       <Section title={s.terms}>
         <Card>
           <DetailRow label={s.lender} value={sh.lender(loan.lenderName)} />
@@ -123,8 +149,10 @@ export function BorrowerLoanDetails() {
             {history.map((entry, i) => {
               const when = dateKeyOf(entry?.changedAt || entry?.date || entry?.at || entry?.createdAt);
               const lines = changeLines(entry);
+              const key = changeKey(entry);
+              const ack = changeAcknowledgement(loan, entry, user?.uid);
               return (
-                <Card key={i}>
+                <Card key={key || i}>
                   <p className="text-[15px] font-bold text-ink">{when ? s.changedOn(sh.date(when)) : s.dateUnknown}</p>
                   {lines.map((c, j) => (
                     <div key={j} className="mt-3 rounded-xl bg-canvas p-3">
@@ -136,12 +164,43 @@ export function BorrowerLoanDetails() {
                   {(entry?.reason || entry?.note) && (
                     <p className="mt-3 text-[15px] font-medium text-ink-soft"><span className="font-bold">{s.reason}:</span> {entry.reason || entry.note}</p>
                   )}
+                  <div className="mt-4 border-t border-line pt-4">
+                    {ack ? (
+                      <AcknowledgedLine ack={ack} />
+                    ) : !key ? (
+                      <p className="text-[14px] font-medium text-ink-muted">{s.cannotAck}</p>
+                    ) : (
+                      <>
+                        <p className="mb-3 text-[15px] font-bold text-amber-700">{s.changeStatusPending}</p>
+                        <AcknowledgeButton
+                          label={s.agreeChange}
+                          lenderUid={loan.lenderUid}
+                          collectionName="loans"
+                          docId={loan.id}
+                          extra={{ kind: "change", changeId: key }}
+                        >
+                          <Link
+                            to={`/help?loan=${loan.id}&topic=loan_change`}
+                            className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-xl border border-line bg-white px-5 text-[17px] font-bold text-rose-700 active:bg-rose-50"
+                          >
+                            <ThumbsDown size={22} /> {s.disagreeChange}
+                          </Link>
+                        </AcknowledgeButton>
+                      </>
+                    )}
+                  </div>
                 </Card>
               );
             })}
           </div>
         )}
       </Section>
+
+      {(loanGuarantors.length > 0 || loanCollateral.length > 0) && (
+        <Section title={s.security}>
+          <LoanSecurityRecords guarantors={loanGuarantors} collateral={loanCollateral} />
+        </Section>
+      )}
 
       <div className="grid gap-3">
         <Button size="lg" block icon={Wallet} to="/payments">{s.history}</Button>

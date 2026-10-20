@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Camera, UserPlus } from "lucide-react";
+import { canAddBorrower } from "../config/plans";
+import { UpgradeCard } from "../components/UpgradeCard";
 import { useApp } from "../context/AppContext";
 import { useCopy } from "../i18n/useCopy";
 import { addUserRecord, uploadEvidence, createBorrowerLink } from "../services/firebaseService";
@@ -91,7 +93,9 @@ export function BorrowerForm({ formData, onChange, photoFile, onPhoto, mobileLoc
 }
 
 export function AddBorrower() {
-  const { user, lender, refreshData } = useApp();
+  const { user, lender, borrowers, plan, refreshData } = useApp();
+  const activeCount = borrowers.filter((b) => b.status !== "inactive").length;
+  const atLimit = !canAddBorrower(plan, activeCount);
   const s = useCopy(addBorrowerCopy);
   const f = useCopy(borrowerFormCopy);
   const navigate = useNavigate();
@@ -110,6 +114,7 @@ export function AddBorrower() {
     if (!formData.name.trim() || !formData.mobile.trim()) return setError(f.errRequired);
     if (!isValidMobile(formData.mobile)) return setError(f.errMobile);
     if (!user) return setError(f.errLogin);
+    if (atLimit) return;
 
     try {
       setLoading(true);
@@ -142,10 +147,11 @@ export function AddBorrower() {
 
   return (
     <Screen title={s.title} subtitle={s.subtitle} back>
+      {atLimit && <UpgradeCard limit={plan.borrowerLimit} />}
       <BorrowerForm formData={formData} onChange={handleChange} photoFile={photoFile} onPhoto={setPhotoFile} />
       {error && <Notice tone="error">{error}</Notice>}
       <BottomAction>
-        <Button size="lg" block icon={UserPlus} onClick={handleSave} loading={loading}>
+        <Button size="lg" block icon={UserPlus} onClick={handleSave} loading={loading} disabled={atLimit}>
           {loading ? s.saving : s.save}
         </Button>
       </BottomAction>

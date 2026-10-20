@@ -58,6 +58,45 @@ Android Studio (or the Android SDK + JDK 21) is required to build the APK.
 The app id is `com.runamitra.app` (in `capacitor.config.json`); choose your
 final id before the first Play Store upload — it cannot be changed afterwards.
 
+## Plans and Razorpay payments
+
+Lenders can upgrade from the free Simple plan (3 active borrowers) to Regular
+(₹99/30 days, 50 borrowers) or Advanced (₹249/30 days, unlimited). Prices,
+limits and features live in `src/config/plans.js`. Borrower access to their
+own loan records is free on every plan.
+
+How a payment works:
+
+1. The app asks the server (`api/razorpay/create-order`) for an order. The
+   server sets the price from `plans.js` — the app cannot choose the amount.
+2. Razorpay Checkout opens; the person pays.
+3. The app sends the result to `api/razorpay/verify`. The server checks the
+   signature with the secret key, fetches the payment from Razorpay, checks the
+   amount and order, then writes `users/{uid}/subscription/current`.
+   Firestore rules stop the app itself from writing that document.
+4. Optional backup: `api/razorpay/webhook` activates the plan if the app was
+   closed before step 3. The same payment is never counted twice.
+
+### Setup (test mode — no real money)
+
+1. Razorpay Dashboard → switch to **Test Mode** → Account & Settings → API Keys →
+   generate a key pair.
+2. Firebase console → Project settings → Service accounts → Generate new private key.
+3. Vercel → Project → Settings → Environment Variables:
+   `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `FIREBASE_SERVICE_ACCOUNT`
+   (the whole JSON on one line), optionally `RAZORPAY_WEBHOOK_SECRET`.
+   Redeploy.
+4. Android app: set `VITE_API_BASE_URL=https://<your-vercel-domain>` in
+   `.env.local`, then `npm run android:sync`.
+
+For local testing put `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` in `.env.local`
+(never commit it); `npm run dev:emulator` serves `/api` from the dev server.
+Test card: 4111 1111 1111 1111, any future expiry, any CVV; test UPI: `success@razorpay`.
+
+```bash
+npm run test:payments   # payment server tests (emulator + fake Razorpay)
+```
+
 ## How amounts are calculated
 
 `src/utils/interestEngine.js` is the only place money is calculated (integer

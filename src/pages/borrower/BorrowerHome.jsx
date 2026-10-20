@@ -4,12 +4,13 @@ import { useApp } from "../../context/AppContext";
 import { useCopy } from "../../i18n/useCopy";
 import { countsAsPaid, formatPaise, rupeesToPaise } from "../../utils/interestEngine";
 import { ActionTile, Badge, Button, Card, EmptyState, IconButton, MoneyHero, Screen, Section, Stat } from "../../ui";
-import { dateKeyOf, dueText, openLoans, useBorrowerLoans } from "./borrowerData";
+import { dateKeyOf, dueText, openLoans, spokenAmountParts, useBorrowerLoans, loanLabel } from "./borrowerData";
+import { VoiceSummary } from "../../components/VoiceSummary";
 import { borrowerSharedCopy } from "./BorrowerShared.copy";
 import { borrowerHomeCopy } from "./BorrowerHome.copy";
 
 export function BorrowerHome() {
-  const { borrowers, payments, refreshData } = useApp();
+  const { borrowers, payments, refreshData, language } = useApp();
   const s = useCopy(borrowerHomeCopy);
   const sh = useCopy(borrowerSharedCopy);
   const items = useBorrowerLoans();
@@ -72,6 +73,15 @@ export function BorrowerHome() {
       ? s.captionUnclear(summary.unclear)
       : summary.allSettled ? s.captionSettled : s.captionOk;
 
+  // Summary for reading aloud, built from the same engine numbers shown above.
+  const money = (paise) => s.money(spokenAmountParts(paise));
+  const voiceText = [
+    summary.okCount === 0 ? s.voiceUnclear : summary.allSettled ? s.voiceSettled : s.voiceOwed(money(summary.outstanding)),
+    summary.okCount > 0 && summary.unclear > 0 ? s.voiceUnclearSome(summary.unclear) : "",
+    summary.allSettled ? "" : summary.nextDue ? s.voiceNextDue(sh.date(summary.nextDue.date), dueText(sh, summary.nextDue)) : s.voiceNoDue,
+    summary.latest ? s.voiceLast(money(summary.latest.paise), sh.date(summary.latest.date)) : s.voiceNoLast
+  ].filter(Boolean).join(" ");
+
   const single = items.length === 1 ? items[0].loan : null;
   const scrollToLoans = () => document.getElementById("my-loans")?.scrollIntoView({ behavior: "smooth", block: "start" });
 
@@ -83,6 +93,8 @@ export function BorrowerHome() {
         caption={caption}
         tone={summary.okCount === 0 ? "ink" : "brand"}
       />
+
+      <VoiceSummary text={voiceText} lang={language === "en" ? "en" : "te"} />
 
       {summary.okCount > 0 && (
         <div className="grid grid-cols-2 gap-3">
@@ -123,6 +135,7 @@ export function BorrowerHome() {
             <Card key={`${loan.lenderUid}_${loan.id}`} to={`/loans/${loan.id}`}>
               <div className="flex items-start justify-between gap-3">
                 <p className="min-w-0 text-[17px] font-bold text-ink">{sh.loanFrom(loan.lenderName)}</p>
+                <p className="text-sm font-semibold text-ink-muted">{loanLabel(loan, sh)}</p>
                 {calc.status !== "ok"
                   ? <Badge tone="amber">{sh.needsClarification}</Badge>
                   : calc.settled ? <Badge tone="brand">{sh.settled}</Badge> : null}

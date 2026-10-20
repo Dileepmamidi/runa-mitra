@@ -47,7 +47,17 @@ export const paymentEntryCopy = {
     errDate: "Please enter the date the money was received.",
     errFuture: "The date cannot be in the future.",
     errLogin: "Please sign in again.",
-    saveError: "Could not save the payment. Please check the internet and try again."
+    saveError: "Could not save the payment. Please check the internet and try again.",
+    adjustToggle: "Count this payment on an agreed earlier date",
+    adjustHelp: "Use this only if you both agreed that a late payment should be counted as paid on an earlier date (for example, the usual payment day). Less interest is then counted.",
+    effectiveDate: "Agreed date to count it as paid",
+    effectiveHelp: "Before the date received, and at most 31 days earlier.",
+    adjustReason: "Why was this agreed?",
+    adjustReasonPlaceholder: "For example: paid 3 days late because the bank was closed",
+    confirmEffective: "Counted as paid on",
+    confirmAdjustReason: "Reason",
+    errEffective: "The agreed date must be before the date received, at most 31 days earlier, and not before the loan date.",
+    errAdjustReason: "Please write why the earlier date was agreed."
   },
   te: {
     title: "చెల్లింపు నమోదు",
@@ -97,6 +107,16 @@ export const paymentEntryCopy = {
     errDate: "దయచేసి డబ్బు వచ్చిన తేదీ ఇవ్వండి.",
     errFuture: "తేదీ ఈరోజు తర్వాత ఉండకూడదు.",
     errLogin: "దయచేసి మళ్ళీ లాగిన్ అవ్వండి.",
-    saveError: "చెల్లింపు సేవ్ చేయలేకపోయాం. ఇంటర్నెట్ చూసి మళ్ళీ ప్రయత్నించండి."
+    saveError: "చెల్లింపు సేవ్ చేయలేకపోయాం. ఇంటర్నెట్ చూసి మళ్ళీ ప్రయత్నించండి.",
+    adjustToggle: "ఈ చెల్లింపును ఒప్పుకున్న ముందు తేదీకి లెక్కించండి",
+    adjustHelp: "ఆలస్యంగా వచ్చిన చెల్లింపును ముందు తేదీకి (ఉదాహరణకు, మామూలు చెల్లింపు రోజుకు) కట్టినట్లు లెక్కించడానికి మీరిద్దరూ ఒప్పుకుంటేనే వాడండి. అప్పుడు వడ్డీ తక్కువ పడుతుంది.",
+    effectiveDate: "కట్టినట్లు లెక్కించే ఒప్పుకున్న తేదీ",
+    effectiveHelp: "డబ్బు వచ్చిన తేదీ కంటే ముందు, 31 రోజుల లోపు.",
+    adjustReason: "ఎందుకు ఒప్పుకున్నారు?",
+    adjustReasonPlaceholder: "ఉదాహరణకు: బ్యాంక్ మూసి ఉండడం వల్ల 3 రోజులు ఆలస్యంగా కట్టారు",
+    confirmEffective: "కట్టినట్లు లెక్కించే తేదీ",
+    confirmAdjustReason: "కారణం",
+    errEffective: "ఒప్పుకున్న తేదీ డబ్బు వచ్చిన తేదీ కంటే ముందు, 31 రోజుల లోపు ఉండాలి, రుణం తేదీ కంటే ముందు కాకూడదు.",
+    errAdjustReason: "ముందు తేదీకి ఎందుకు ఒప్పుకున్నారో రాయండి."
   }
 };

@@ -62,6 +62,7 @@ export const addLoanCopy = {
   en: {
     title: "New loan",
     subtitle: "Most loans are given on trust. A guarantor or security is optional.",
+    prefillNotice: "Filled from a scanned note — please check every value before saving.",
     details: "Loan details",
     interest: "Interest",
     security: "Security",
@@ -107,6 +108,7 @@ export const addLoanCopy = {
   te: {
     title: "కొత్త రుణం",
     subtitle: "చాలా రుణాలు నమ్మకం మీదే ఇస్తారు. హామీదారు లేదా తాకట్టు ఇవ్వకపోయినా పరవాలేదు.",
+    prefillNotice: "స్కాన్ చేసిన కాగితం నుండి నింపాం — సేవ్ చేసే ముందు ప్రతి వివరం సరిచూడండి.",
     details: "రుణ వివరాలు",
     interest: "వడ్డీ",
     security: "హామీ",

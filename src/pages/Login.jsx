@@ -8,12 +8,20 @@ import { useCopy } from "../i18n/useCopy";
 import { Button, Field, Input, Notice } from "../ui";
 import { loginCopy } from "./Onboarding.copy";
 
+// Returns null when the reCAPTCHA container is not on screen (for example
+// while a signed-in user is being redirected away from this page).
 function makeVerifier() {
-  return new RecaptchaVerifier(auth, "recaptcha-container", {
-    size: "normal",
-    callback: () => {},
-    "expired-callback": () => {}
-  });
+  if (!document.getElementById("recaptcha-container")) return null;
+  try {
+    return new RecaptchaVerifier(auth, "recaptcha-container", {
+      size: "normal",
+      callback: () => {},
+      "expired-callback": () => {}
+    });
+  } catch (err) {
+    console.warn("Could not start the security check", err);
+    return null;
+  }
 }
 
 export function Login() {
@@ -30,7 +38,9 @@ export function Login() {
 
   // Create & render verifier once on mount
   useEffect(() => {
+    if (user) return undefined;
     const v = makeVerifier();
+    if (!v) return undefined;
     v.render().then(() => {
       verifierRef.current = v;
     }).catch(() => {});
@@ -39,7 +49,7 @@ export function Login() {
       try { v.clear(); } catch (_) {}
       verifierRef.current = null;
     };
-  }, []);
+  }, [user]);
 
   const resetVerifier = () => {
     // Clear old and mount fresh verifier into container
@@ -48,7 +58,7 @@ export function Login() {
       verifierRef.current = null;
     }
     const v = makeVerifier();
-    v.render().then(() => {
+    v?.render().then(() => {
       verifierRef.current = v;
     }).catch(() => {});
   };

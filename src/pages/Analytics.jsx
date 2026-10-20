@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { BarChart3 } from "lucide-react";
 import { ChartBars } from "../components/ChartBars";
-import { ModeGate } from "../components/ModeGate";
+import { UpgradeCard } from "../components/UpgradeCard";
 import { useApp } from "../context/AppContext";
 import { useCopy } from "../i18n/useCopy";
 import { calculateLoan, countsAsPaid, formatPaise, rupeesToPaise, toDateKey } from "../utils/interestEngine";
@@ -12,7 +12,7 @@ const FEW_LOANS = 5;
 
 // Plain totals from recorded data. No scores, no predictions, no labels about people.
 export function Analytics() {
-  const { borrowers, loans, payments, language } = useApp();
+  const { borrowers, loans, payments, language, hasFeature } = useApp();
   const s = useCopy(analyticsCopy);
   const today = toDateKey(new Date());
 
@@ -60,7 +60,10 @@ export function Analytics() {
 
   return (
     <Screen title={s.title} subtitle={s.subtitle} back="/more">
-      <ModeGate min="Regular">
+      {!hasFeature("analytics") ? (
+        <UpgradeCard feature="analytics" />
+      ) : (
+      <>
         {loans.length === 0 ? (
           <EmptyState icon={BarChart3} title={s.noLoans} />
         ) : (
@@ -94,7 +97,8 @@ export function Analytics() {
             )}
           </>
         )}
-      </ModeGate>
+      </>
+      )}
     </Screen>
   );
 }

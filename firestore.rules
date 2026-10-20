@@ -64,12 +64,57 @@ service cloud.firestore {
         && (mobile == myPhone() || '+91' + mobile == myPhone());
     }
 
-    match /users/{lenderUid} {
-      // Lender: full control of their own records.
-      allow read, write: if isUser(lenderUid);
+    // Family member invited by this lender and accepted (read-only access).
+    function isFamilyOf(lenderUid) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(lenderUid)/familyMembers/$(request.auth.uid));
+    }
 
-      match /{document=**} {
-        allow read, write: if isUser(lenderUid);
+    // Borrower adds exactly one acknowledgement of their own and changes nothing else.
+    function isOwnAcknowledgement() {
+      let before = resource.data.get('acknowledgements', []);
+      let after = request.resource.data.acknowledgements;
+      return onlyChanges(['acknowledgements'])
+        && after.size() == before.size() + 1
+        && after.hasAll(before)
+        && after[after.size() - 1].uid == request.auth.uid;
+    }
+
+    match /users/{lenderUid} {
+      // Lender: full control of their own profile.
+      allow read, write: if isUser(lenderUid);
+      allow read: if isFamilyOf(lenderUid);
+
+      // Lender: full control of their records, except the plan subscription
+      // and plan payments, which only the payment server writes.
+      match /{coll}/{docId} {
+        allow read: if isUser(lenderUid);
+        allow write: if isUser(lenderUid) && !(coll in ['subscription', 'planPayments']);
+        allow read: if isFamilyOf(lenderUid)
+          && coll in ['borrowers', 'loans', 'payments', 'agreements', 'reminders', 'guarantors', 'collateral'];
+      }
+
+      // A person accepts a family-access invitation sent to their phone.
+      match /familyMembers/{memberUid} {
+        allow create: if signedIn()
+          && memberUid == request.auth.uid
+          && request.resource.data.keys().hasOnly(['phone', 'acceptedAt', 'permission'])
+          && request.resource.data.phone == myPhone()
+          && exists(/databases/$(database)/documents/familyLinks/$(myPhone())/invites/$(lenderUid))
+          && get(/databases/$(database)/documents/familyLinks/$(myPhone())/invites/$(lenderUid)).data.status == 'pending';
+        allow delete: if signedIn() && memberUid == request.auth.uid;
+      }
+
+      // Linked borrower acknowledges a loan change or an agreement.
+      match /loans/{loanId} {
+        allow update: if signedIn() && !isUser(lenderUid)
+          && resource.data.get('borrowerUid', null) == request.auth.uid
+          && isOwnAcknowledgement();
+      }
+      match /agreements/{agreementId} {
+        allow update: if signedIn() && !isUser(lenderUid)
+          && resource.data.get('borrowerUid', null) == request.auth.uid
+          && isOwnAcknowledgement();
       }
 
       // Borrower accepts an invitation: may set only linkedUid/linkedAt to
@@ -86,7 +131,7 @@ service cloud.firestore {
       // Records shared with the linked borrower.
       match /{coll}/{docId} {
         allow read: if signedIn()
-          && coll in ['loans', 'payments', 'agreements', 'reminders', 'evidence', 'messages']
+          && coll in ['loans', 'payments', 'agreements', 'reminders', 'evidence', 'messages', 'guarantors', 'collateral']
           && resource.data.get('borrowerUid', null) == request.auth.uid;
       }
 
@@ -144,6 +189,25 @@ service cloud.firestore {
 
     // Each signed-in person's list of accepted lender links (pointers only).
     match /borrowerAccess/{uid} {
+      allow read, write: if isUser(uid);
+    }
+
+    // Family-access invitations addressed to a phone number.
+    match /familyLinks/{phone}/invites/{lenderUid} {
+      allow read: if signedIn() && (phone == myPhone() || lenderUid == request.auth.uid);
+      allow create, update: if isUser(lenderUid)
+        && request.resource.data.lenderUid == lenderUid
+        && request.resource.data.status in ['pending', 'revoked'];
+      allow update: if signedIn()
+        && phone == myPhone()
+        && onlyChanges(['status', 'acceptedBy', 'acceptedAt'])
+        && request.resource.data.status in ['accepted', 'declined']
+        && request.resource.data.acceptedBy == request.auth.uid;
+      allow delete: if isUser(lenderUid);
+    }
+
+    // Each signed-in person's list of lenders whose records they may view.
+    match /familyAccess/{uid} {
       allow read, write: if isUser(uid);
     }
 

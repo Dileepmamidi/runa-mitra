@@ -4,11 +4,32 @@ import { useApp } from "../context/AppContext";
 import { useCopy } from "../i18n/useCopy";
 import { addUserRecord, uploadEvidence } from "../services/firebaseService";
 import { formatPaise, rupeesToPaise, termsFromLoan, toDateKey } from "../utils/interestEngine";
-import { Button, Card, Field, FilePicker, Input, List, ListRow, Notice, Screen, Section, Segmented, Select } from "../ui";
+import { Badge, Button, Card, Field, FilePicker, Input, List, ListRow, Notice, Screen, Section, Segmented, Select } from "../ui";
 import { agreementCopy, agreementPaperCopy } from "./AgreementGeneration.copy";
 
 const borrowerName = (b) => b?.personalInfo?.name || b?.name || "";
 const loanAmount = (loan) => formatPaise(rupeesToPaise(loan?.principal) || loan?.terms?.principalPaise || 0);
+
+const timeOf = (a) => Date.parse(a?.generatedAt || "") || (a?.createdAt?.seconds ? a.createdAt.seconds * 1000 : 0);
+
+// Agreements of one loan, oldest first, each with an effective version number.
+function loanVersions(agreements, loanId) {
+  const list = agreements
+    .filter((a) => a.loanId === loanId)
+    .sort((a, b) => {
+      const va = Number.isFinite(a.version) ? a.version : 0;
+      const vb = Number.isFinite(b.version) ? b.version : 0;
+      return va !== vb ? va - vb : timeOf(a) - timeOf(b);
+    });
+  return list.map((agr, i) => ({ agr, version: Number.isFinite(agr.version) ? agr.version : i + 1, latest: i === list.length - 1 }));
+}
+
+// Paise for a stored amount (amountPaise preferred), or null.
+function paiseOf(record, paiseKey, rupeesKey) {
+  if (Number.isInteger(record?.[paiseKey]) && record[paiseKey] > 0) return record[paiseKey];
+  const p = rupeesToPaise(record?.[rupeesKey]);
+  return Number.isFinite(p) && p > 0 ? p : null;
+}
 
 // Object URL for a chosen signature photo, released when it changes.
 function usePreview(file) {
@@ -35,7 +56,7 @@ function SignatureBox({ src, label, name }) {
 }
 
 export function AgreementGeneration() {
-  const { user, lender, borrowers, loans, agreements, refreshData } = useApp();
+  const { user, lender, borrowers, loans, agreements, guarantors = [], collateral = [], refreshData } = useApp();
   const s = useCopy(agreementCopy);
 
   const [borrowerId, setBorrowerId] = useState("");
@@ -48,6 +69,10 @@ export function AgreementGeneration() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  // Version shown on the printed paper, fixed at save time so the refresh
+  // after saving does not change it before printing.
+  const [printed, setPrinted] = useState(null);
+  useEffect(() => setPrinted(null), [loanId]);
 
   const borrowerSign = usePreview(borrowerSignFile);
   const lenderSign = usePreview(lenderSignFile);
@@ -57,6 +82,13 @@ export function AgreementGeneration() {
   const selectedLoan = loans.find((l) => l.id === loanId);
   const borrowerLoans = loans.filter((l) => l.borrowerId === borrowerId);
   const paper = agreementPaperCopy[paperLanguage];
+
+  // Earlier versions of the agreement for the chosen loan.
+  const previousVersions = loanId ? loanVersions(agreements, loanId) : [];
+  const previous = previousVersions[previousVersions.length - 1] || null;
+  const nextVersion = previous ? Math.max(...previousVersions.map((v) => v.version)) + 1 : 1;
+  const loanGuarantors = loanId ? guarantors.filter((g) => g.loanId === loanId && (!g.borrowerId || g.borrowerId === borrowerId)) : [];
+  const loanCollateral = loanId ? collateral.filter((c) => c.loanId === loanId && (!c.borrowerId || c.borrowerId === borrowerId)) : [];
 
   const paperText = useMemo(() => {
     if (!selectedBorrower || !selectedLoan) return null;
@@ -75,8 +107,31 @@ export function AgreementGeneration() {
       due: toDateKey(selectedLoan.dueDate) || "",
       witness: witnessName.trim()
     };
-    return { body: paper.body(fields), repay: paper.repay(fields) };
-  }, [selectedBorrower, selectedLoan, paper, lender, witnessName]);
+    const guarantorLines = loanGuarantors.map((g) => {
+      const paise = paiseOf(g, "amountPaise", "amount") ?? paiseOf(g, "guaranteeAmountPaise", "guaranteeAmount");
+      const scope = g.guaranteeScope || g.scope || g.coverage || "";
+      return paper.guarantorLine({
+        name: g.name || "",
+        relationship: g.relationship || "",
+        amount: paise ? formatPaise(paise) : "",
+        scope: scope === "full" ? paper.fullLoan : scope
+      });
+    });
+    const collateralLines = loanCollateral.map((c) => {
+      const value = paiseOf({ ...c, estimatedValuePaise: c.estimatedValuePaise ?? c.valuePaise }, "estimatedValuePaise", "value");
+      const isReturned = String(c.status || "").toLowerCase() === "returned" || Boolean(c.returnedAt || c.returnedDate);
+      const returnedDate = toDateKey(c.returnedAt) || toDateKey(c.returnedDate);
+      return paper.collateralLine({
+        description: c.description || "",
+        type: c.type ? paper.collateralTypes[String(c.type).toLowerCase()] || c.type : "",
+        value: value ? formatPaise(value) : "",
+        returned: isReturned ? returnedDate || true : false
+      });
+    });
+    const supersedes = previous ? paper.supersedes(toDateKey(previous.agr.generatedAt) || "") : "";
+    return { body: paper.body(fields), repay: paper.repay(fields), guarantorLines, collateralLines, supersedes };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedBorrower, selectedLoan, paper, lender, witnessName, guarantors, collateral, agreements]);
 
   const handleGenerate = async () => {
     setError("");
@@ -85,6 +140,7 @@ export function AgreementGeneration() {
     if (!borrowerId || !loanId) return setError(s.needSelection);
     try {
       setLoading(true);
+      const frozen = { version: nextVersion, supersedes: paperText?.supersedes || "" };
       const borrowerSignUrl = borrowerSignFile ? await uploadEvidence(user.uid, borrowerSignFile, ["agreements", loanId, "borrower"]) : "";
       const lenderSignUrl = lenderSignFile ? await uploadEvidence(user.uid, lenderSignFile, ["agreements", loanId, "lender"]) : "";
       const witnessSignUrl = witnessSignFile ? await uploadEvidence(user.uid, witnessSignFile, ["agreements", loanId, "witness"]) : "";
@@ -96,8 +152,11 @@ export function AgreementGeneration() {
         borrowerSignUrl,
         lenderSignUrl,
         witnessSignUrl,
+        version: nextVersion,
+        ...(previous?.agr?.id ? { supersedes: previous.agr.id } : {}),
         generatedAt: new Date().toISOString()
       });
+      setPrinted(frozen);
       setSuccess(s.saved);
       await refreshData();
       setTimeout(() => window.print(), 500);
@@ -109,8 +168,19 @@ export function AgreementGeneration() {
     }
   };
 
+  const printVersion = printed ? printed.version : nextVersion;
+  const printSupersedes = printed ? printed.supersedes : paperText?.supersedes;
   const nameOf = (id) => borrowerName(borrowers.find((b) => b.id === id)) || s.unknown;
   const saved = [...agreements].sort((a, b) => String(b.generatedAt || "").localeCompare(String(a.generatedAt || "")));
+  // Version and "replaced" state for every saved agreement, per loan.
+  const versionInfo = new Map();
+  for (const lid of new Set(agreements.map((a) => a.loanId).filter(Boolean))) {
+    for (const v of loanVersions(agreements, lid)) versionInfo.set(v.agr.id, v);
+  }
+  // Borrower acknowledgement = an entry added by someone other than the lender.
+  const borrowerAck = (a) => (Array.isArray(a.acknowledgements) ? a.acknowledgements : [])
+    .filter((x) => x && x.uid && x.uid !== user?.uid && (!x.kind || x.kind === "agreement"))
+    .sort((x, y) => String(y.at || "").localeCompare(String(x.at || "")))[0] || null;
 
   return (
     <>
@@ -154,11 +224,27 @@ export function AgreementGeneration() {
             </div>
           </Section>
 
+          {previous && <Notice tone="info">{s.newVersion(nextVersion)}</Notice>}
+
           {paperText && (
             <Card>
-              <p className="text-[17px] font-extrabold text-ink">{paper.heading}</p>
+              <p className="text-[17px] font-extrabold text-ink">{paper.heading}{nextVersion > 1 ? ` · ${paper.version(nextVersion)}` : ""}</p>
               <p className="mt-2 text-[15px] font-medium leading-relaxed text-ink-soft">{paperText.body}</p>
               <p className="mt-2 text-[15px] font-medium leading-relaxed text-ink-soft">{paperText.repay}</p>
+              {paperText.guarantorLines.length > 0 && (
+                <>
+                  <p className="mt-3 text-[15px] font-bold text-ink">{paper.guarantorsTitle}</p>
+                  {paperText.guarantorLines.map((line, i) => <p key={i} className="text-[15px] font-medium text-ink-soft">{line}</p>)}
+                  <p className="mt-1 text-[13px] font-medium text-ink-muted">{paper.guarantorNote}</p>
+                </>
+              )}
+              {paperText.collateralLines.length > 0 && (
+                <>
+                  <p className="mt-3 text-[15px] font-bold text-ink">{paper.collateralTitle}</p>
+                  {paperText.collateralLines.map((line, i) => <p key={i} className="text-[15px] font-medium text-ink-soft">{line}</p>)}
+                </>
+              )}
+              {paperText.supersedes && <p className="mt-3 text-[13px] font-medium text-ink-muted">{paperText.supersedes}</p>}
             </Card>
           )}
 
@@ -174,17 +260,28 @@ export function AgreementGeneration() {
               <Card><p className="text-[15px] font-medium text-ink-muted">{s.noSaved}</p></Card>
             ) : (
               <List>
-                {saved.slice(0, 10).map((a) => (
-                  <ListRow
-                    key={a.id}
-                    icon={FileSignature}
-                    title={nameOf(a.borrowerId)}
-                    subtitle={s.savedOn(toDateKey(a.generatedAt) || "—")}
-                    to={a.loanId ? `/loans/${a.loanId}` : undefined}
-                  />
-                ))}
+                {saved.slice(0, 10).map((a) => {
+                  const info = versionInfo.get(a.id);
+                  const ack = borrowerAck(a);
+                  return (
+                    <ListRow
+                      key={a.id}
+                      icon={FileSignature}
+                      title={nameOf(a.borrowerId)}
+                      subtitle={`${s.savedOn(toDateKey(a.generatedAt) || toDateKey(a.createdAt) || "—")}${info ? ` · ${s.version(info.version)}` : ""}`}
+                      trailing={
+                        <span className="flex flex-col items-end gap-1">
+                          {info && !info.latest && <Badge tone="ink">{s.replaced}</Badge>}
+                          {ack ? <Badge tone="brand">{s.ackDone(toDateKey(ack.at) || "")}</Badge> : <Badge tone="amber">{s.ackPending}</Badge>}
+                        </span>
+                      }
+                      to={a.loanId ? `/loans/${a.loanId}` : undefined}
+                    />
+                  );
+                })}
               </List>
             )}
+            {saved.length > 0 && <p className="mt-2 px-1 text-[13px] font-medium text-ink-muted">{s.ackNote}</p>}
           </Section>
         </Screen>
       </div>
@@ -193,9 +290,24 @@ export function AgreementGeneration() {
       <div className="hidden print:block" lang={paperLanguage}>
         {paperText && (
           <div className="rounded-lg border-2 border-black p-8 text-black">
-            <h1 className="mb-8 text-center text-3xl font-black">{paper.heading}</h1>
+            <h1 className="mb-2 text-center text-3xl font-black">{paper.heading}</h1>
+            {printVersion > 1 ? <p className="mb-6 text-center text-base font-bold">{paper.version(printVersion)}</p> : <div className="mb-6" />}
             <p className="mb-4 text-lg leading-relaxed">{paperText.body}</p>
-            <p className="mb-8 text-lg leading-relaxed">{paperText.repay}</p>
+            <p className="mb-6 text-lg leading-relaxed">{paperText.repay}</p>
+            {paperText.guarantorLines.length > 0 && (
+              <div className="mb-6">
+                <p className="text-lg font-bold">{paper.guarantorsTitle}</p>
+                {paperText.guarantorLines.map((line, i) => <p key={i} className="text-lg leading-relaxed">{line}</p>)}
+                <p className="mt-1 text-sm">{paper.guarantorNote}</p>
+              </div>
+            )}
+            {paperText.collateralLines.length > 0 && (
+              <div className="mb-6">
+                <p className="text-lg font-bold">{paper.collateralTitle}</p>
+                {paperText.collateralLines.map((line, i) => <p key={i} className="text-lg leading-relaxed">{line}</p>)}
+              </div>
+            )}
+            {printSupersedes && <p className="mb-6 text-sm">{printSupersedes}</p>}
             <div className="mt-16 grid grid-cols-2 gap-8 pt-8">
               <SignatureBox src={borrowerSign} label={paper.borrowerSign} name={borrowerName(selectedBorrower)} />
               <SignatureBox src={lenderSign} label={paper.lenderSign} name={lender?.name} />

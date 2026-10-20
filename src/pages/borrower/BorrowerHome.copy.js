@@ -26,7 +26,16 @@ export const borrowerHomeCopy = {
     openLoan: "See details",
     emptyTitle: "Your loan is not visible yet",
     emptyText: "You are linked to your lender. Your lender needs to open their Runa Mitra app once to finish sharing your loan. Then tap Refresh.",
-    emptyAction: "Refresh"
+    emptyAction: "Refresh",
+    money: ({ rupees, paise }) => (paise ? `${rupees} rupees and ${paise} paise` : `${rupees} rupees`),
+    voiceOwed: (amount) => `Today you owe ${amount} in total.`,
+    voiceSettled: "All your loans are fully paid.",
+    voiceUnclear: "Your lender needs to complete the loan details before the amount can be told.",
+    voiceUnclearSome: (n) => (n === 1 ? "One loan needs clarification and is not counted." : `${n} loans need clarification and are not counted.`),
+    voiceNextDue: (date, when) => `Next due date is ${date}. ${when}.`,
+    voiceNoDue: "No due date is recorded.",
+    voiceLast: (amount, date) => `Your last payment was ${amount} on ${date}.`,
+    voiceNoLast: "No payment is recorded yet."
   },
   te: {
     greeting: (name) => (name ? `నమస్తే, ${name} గారు` : "నమస్తే"),
@@ -55,6 +64,15 @@ export const borrowerHomeCopy = {
     openLoan: "వివరాలు చూడండి",
     emptyTitle: "మీ అప్పు ఇంకా కనిపించడం లేదు",
     emptyText: "మీరు రుణదాతతో జతయ్యారు. మీ అప్పు వివరాలు పంచుకోవడానికి రుణదాత ఒకసారి తన రుణ మిత్ర యాప్ తెరవాలి. తర్వాత 'మళ్ళీ చూడండి' నొక్కండి.",
-    emptyAction: "మళ్ళీ చూడండి"
+    emptyAction: "మళ్ళీ చూడండి",
+    money: ({ rupees, paise }) => (paise ? `${rupees} రూపాయల ${paise} పైసలు` : `${rupees} రూపాయలు`),
+    voiceOwed: (amount) => `ఈరోజు మీరు మొత్తం ${amount} కట్టాలి.`,
+    voiceSettled: "మీ అప్పులన్నీ పూర్తిగా కట్టేశారు.",
+    voiceUnclear: "రుణదాత అప్పు వివరాలు పూర్తి చేసిన తర్వాతే మొత్తం చెప్పగలం.",
+    voiceUnclearSome: (n) => (n === 1 ? "ఒక అప్పుకు స్పష్టత కావాలి, అది ఈ మొత్తంలో లేదు." : `${n} అప్పులకు స్పష్టత కావాలి, అవి ఈ మొత్తంలో లేవు.`),
+    voiceNextDue: (date, when) => `తదుపరి గడువు ${date}. ${when}.`,
+    voiceNoDue: "గడువు తేదీ నమోదు కాలేదు.",
+    voiceLast: (amount, date) => `మీ చివరి చెల్లింపు ${date} న ${amount}.`,
+    voiceNoLast: "ఇంకా ఏ చెల్లింపూ నమోదు కాలేదు."
   }
 };

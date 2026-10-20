@@ -197,6 +197,67 @@ describe("borrower access", () => {
   });
 });
 
+describe("plans, family access, acknowledgements", () => {
+  const FAMILY = "familyUid";
+  const FAMILY_PHONE = "+919888888888";
+  const familyDb = (phone = FAMILY_PHONE) => env.authenticatedContext(FAMILY, { phone_number: phone }).firestore();
+
+  test("a lender cannot write their own subscription or plan payments", async () => {
+    await assertFails(setDoc(doc(lenderDb(), "users", LENDER, "subscription", "current"), { planId: "advanced", status: "active" }));
+    await assertFails(setDoc(doc(lenderDb(), "users", LENDER, "planPayments", "order_1"), { status: "paid" }));
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "users", LENDER, "subscription", "current"), { planId: "regular", status: "active" });
+    });
+    await assertSucceeds(getDoc(doc(lenderDb(), "users", LENDER, "subscription", "current")));
+    await assertFails(getDoc(doc(env.authenticatedContext(OTHER_LENDER).firestore(), "users", LENDER, "subscription", "current")));
+  });
+
+  test("family access needs an invitation to that phone, then is read-only", async () => {
+    const member = (db) => setDoc(doc(db, "users", LENDER, "familyMembers", FAMILY), { phone: FAMILY_PHONE, permission: "view" });
+    await assertFails(member(familyDb())); // not invited yet
+    await assertSucceeds(setDoc(doc(lenderDb(), "familyLinks", FAMILY_PHONE, "invites", LENDER), { lenderUid: LENDER, status: "pending" }));
+    await assertFails(member(familyDb(OTHER_PHONE))); // wrong phone
+    await assertSucceeds(member(familyDb()));
+    await assertSucceeds(getDoc(doc(familyDb(), "users", LENDER, "loans", "loan1")));
+    await assertSucceeds(getDocs(collection(familyDb(), "users", LENDER, "borrowers")));
+    await assertFails(getDocs(collection(familyDb(), "users", LENDER, "messages")));
+    await assertFails(getDocs(collection(familyDb(), "users", LENDER, "evidence")));
+    await assertFails(updateDoc(doc(familyDb(), "users", LENDER, "loans", "loan1"), { balance: 0 }));
+    await assertFails(setDoc(doc(familyDb(), "users", LENDER, "payments", "x"), { amount: 1 }));
+    await assertFails(getDoc(doc(familyDb(), "users", OTHER_LENDER)));
+  });
+
+  test("a family member cannot grant themselves more than view access", async () => {
+    await setDoc(doc(lenderDb(), "familyLinks", FAMILY_PHONE, "invites", LENDER), { lenderUid: LENDER, status: "pending" });
+    await assertFails(setDoc(doc(familyDb(), "users", LENDER, "familyMembers", FAMILY), { phone: FAMILY_PHONE, role: "owner" }));
+  });
+
+  test("borrower adds only their own acknowledgement and nothing else", async () => {
+    await link();
+    const loanRef = doc(borrowerDb(), "users", LENDER, "loans", "loan1");
+    await assertSucceeds(updateDoc(loanRef, { acknowledgements: [{ uid: BORROWER, kind: "change", changeId: "c1" }] }));
+    await assertFails(updateDoc(loanRef, { acknowledgements: [{ uid: STRANGER, kind: "change", changeId: "c2" }] }));
+    await assertFails(updateDoc(loanRef, { acknowledgements: [] }));
+    await assertFails(updateDoc(loanRef, {
+      acknowledgements: [{ uid: BORROWER, kind: "change", changeId: "c1" }, { uid: BORROWER, kind: "change", changeId: "c3" }],
+      balance: 0
+    }));
+    const other = doc(borrowerDb(), "users", LENDER, "loans", "loan2");
+    await assertFails(updateDoc(other, { acknowledgements: [{ uid: BORROWER, kind: "change" }] }));
+  });
+
+  test("guarantor and collateral records are shared only with the stamped borrower", async () => {
+    await link();
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "users", LENDER, "guarantors", "g1"), { borrowerId: "b1", borrowerUid: BORROWER, name: "Ravi" });
+      await setDoc(doc(ctx.firestore(), "users", LENDER, "collateral", "c1"), { borrowerId: "b2", name: "Gold chain" });
+    });
+    await assertSucceeds(getDoc(doc(borrowerDb(), "users", LENDER, "guarantors", "g1")));
+    await assertFails(getDoc(doc(borrowerDb(), "users", LENDER, "collateral", "c1")));
+    await assertFails(updateDoc(doc(borrowerDb(), "users", LENDER, "guarantors", "g1"), { name: "x" }));
+  });
+});
+
 describe("storage", () => {
   const file = new Uint8Array([1, 2, 3]);
   const image = { contentType: "image/png" };

@@ -13,7 +13,8 @@ const AUTH = "http://127.0.0.1:9099";
 export const DEMO = {
   lender: { uid: "demo-lender", phone: "+919999900001" },
   borrower: { uid: "demo-borrower", phone: "+919999900002" },
-  invited: { phone: "+919999900003" }
+  invited: { phone: "+919999900003" },
+  family: { phone: "+919999900005" }
 };
 
 async function createAuthUser(uid, phoneNumber) {
@@ -57,7 +58,7 @@ const data = {
   [`users/${L}/borrowers/b1`]: { name: "Lakshmi Devi", mobile: "9999900002", village: "Kondapur", occupation: "Tailor", status: "active", linkedUid: B, notes: "Private lender note — must never reach the borrower", createdAt: now },
   [`users/${L}/borrowers/b2`]: { name: "Suresh Reddy", mobile: "9999900004", village: "Peddapalli", occupation: "Farmer", status: "active", createdAt: now },
   [`users/${L}/borrowers/b3`]: { name: "Anitha", mobile: "9999900003", village: "Kondapur", occupation: "Teacher", status: "active", createdAt: now },
-  [`users/${L}/loans/loan1`]: { borrowerId: "b1", borrowerUid: B, principal: 20000, interestRate: 2, interestType: "Simple", cycle: "monthly", loanDate: monthsAgo(5), dueDate: day(-3), securityType: "Trust only", status: "active", balance: 15000, terms: terms(20000, 2, monthsAgo(5)), createdAt: now },
+  [`users/${L}/loans/loan1`]: { borrowerId: "b1", borrowerUid: B, principal: 20000, interestRate: 2, interestType: "Simple", cycle: "monthly", loanDate: monthsAgo(5), dueDate: day(-3), securityType: "Trust only", status: "active", balance: 15000, terms: terms(20000, 2, monthsAgo(5)), termsHistory: [{ changeId: "chg_demo_1", changedAt: new Date(Date.now() - 12 * 86400000).toISOString(), changedBy: L, kind: "due_date", previous: { dueDate: day(-10) }, next: { dueDate: day(-3) }, reason: "Borrower asked for one more week" }], createdAt: now },
   [`users/${L}/loans/loan2`]: { borrowerId: "b2", principal: 50000, interestRate: 1.5, interestType: "Simple", cycle: "monthly", loanDate: monthsAgo(8, 12), dueDate: day(0), securityType: "Guarantor", status: "active", balance: 50000, terms: terms(50000, 1.5, monthsAgo(8, 12)), createdAt: now },
   [`users/${L}/loans/loan3`]: { borrowerId: "b3", principal: 10000, interestRate: 2, interestType: "Compound", cycle: "monthly", loanDate: monthsAgo(3, 20), dueDate: day(20), securityType: "Trust only", status: "active", balance: 10000, terms: terms(10000, 2, monthsAgo(3, 20), "compound", "monthly"), createdAt: now },
   // Legacy-shaped loan (no `terms`), as created by older app versions.
@@ -68,6 +69,13 @@ const data = {
   [`users/${L}/payments/p4`]: { borrowerId: "b1", borrowerUid: B, loanId: "loan1", amount: 2000, method: "UPI", referenceId: "UPI123456", paymentDate: day(-1), status: "pending_verification", type: "borrower_submitted", createdAt: now },
   [`users/${L}/messages/m1`]: { borrowerId: "b1", borrowerUid: B, loanId: "loan1", type: "extension_request", reason: "Waiting for my salary", requestedDays: 7, status: "pending", requestedAt: now, createdAt: now },
   [`users/${L}/evidence/e1`]: { borrowerId: "b1", borrowerUid: B, loanId: "loan1", category: "Handwritten note", fileUrl: "", notes: "Front side of the original note", createdAt: now },
+  // Paid plan, as the payment server would write it (so plan features can be tested).
+  [`users/${L}/subscription/current`]: { planId: "advanced", status: "active", currentPeriodEnd: Timestamp.fromMillis(Date.now() + 25 * 86400000), lastOrderId: "order_demo", lastPaymentId: "pay_demo" },
+  [`users/${L}/guarantors/g1`]: { borrowerId: "b1", borrowerUid: B, loanId: "loan1", name: "Ravi Kumar", mobile: "9999900006", relationship: "Brother", guaranteeAmountPaise: 1000000, guaranteeScope: "Up to ₹10,000 of the principal", acknowledgement: { status: "recorded", method: "paper_signature", recordedAt: monthsAgo(5) }, verificationStatus: "unverified", createdAt: now },
+  [`users/${L}/collateral/c1`]: { borrowerId: "b2", loanId: "loan2", type: "gold", description: "Gold chain, about 10 grams", identifiers: "Receipt no. 41", estimatedValuePaise: 6000000, photoUrls: [], receivedAt: monthsAgo(8, 12), custodyNote: "Kept in locker", status: "held", createdAt: now },
+  [`users/${L}/reminders/r1`]: { borrowerId: "b1", borrowerUid: B, loanId: "loan1", dueDate: day(4), message: "Namaste Lakshmi garu, a gentle reminder that your payment is due soon. Thank you.", channel: "in_app", status: "scheduled", createdAt: now },
+  [`users/${L}/agreements/a1`]: { borrowerId: "b1", borrowerUid: B, loanId: "loan1", version: 1, language: "en", principal: 20000, interestRate: 2, createdAt: now },
+  [`familyLinks/${DEMO.family.phone}/invites/${L}`]: { lenderUid: L, lenderName: "Ramaiah", memberName: "Sita", permission: "view", status: "pending", createdAt: now },
   [`borrowerAccess/${B}`]: { links: [{ lenderUid: L, borrowerId: "b1", lenderName: "Ramaiah", borrowerName: "Lakshmi Devi" }] },
   [`borrowerLinks/${DEMO.invited.phone}/invites/${L}_b3`]: { lenderUid: L, borrowerId: "b3", lenderName: "Ramaiah", borrowerName: "Anitha", status: "pending", createdAt: now }
 };
@@ -84,6 +92,7 @@ async function main() {
   console.log(`Lender phone:   ${DEMO.lender.phone}`);
   console.log(`Borrower phone: ${DEMO.borrower.phone}`);
   console.log(`Invited phone:  ${DEMO.invited.phone} (new user with a pending invitation)`);
+  console.log(`Family phone:   ${DEMO.family.phone} (pending read-only family invitation)`);
   process.exit(0);
 }
 

@@ -17,7 +17,14 @@ export const borrowerNotificationsCopy = {
     extApproved: "Your lender agreed to give you more time.",
     extRejected: "Your lender did not agree to give more time.",
     extOther: "Your lender looked at your request for more time.",
-    answered: "Your lender answered your question."
+    answered: "Your lender answered your question.",
+    waiting: "Waiting for you",
+    ackChange: (lender) => `Your lender ${lender} changed your loan. Please look at the change.`,
+    ackAgreement: (lender) => `A loan agreement from ${lender} is waiting for you to look at it.`,
+    reminders: "Messages from your lender",
+    reminderDefault: "Your lender sent you a reminder.",
+    reminderDue: (date) => `Date: ${date}`,
+    collateralReturned: (item) => (item ? `Your lender recorded that ${item} was returned to you.` : "Your lender recorded that your security item was returned to you.")
   },
   te: {
     title: "సమాచారం",
@@ -37,6 +44,13 @@ export const borrowerNotificationsCopy = {
     extApproved: "ఇంకొంచెం సమయం ఇవ్వడానికి రుణదాత ఒప్పుకున్నారు.",
     extRejected: "ఇంకొంచెం సమయం ఇవ్వడానికి రుణదాత ఒప్పుకోలేదు.",
     extOther: "సమయం కోసం మీ అభ్యర్థనను రుణదాత చూశారు.",
-    answered: "మీ ప్రశ్నకు రుణదాత జవాబు ఇచ్చారు."
+    answered: "మీ ప్రశ్నకు రుణదాత జవాబు ఇచ్చారు.",
+    waiting: "మీ కోసం ఎదురుచూస్తున్నవి",
+    ackChange: (lender) => `${lender} మీ అప్పులో మార్పు చేశారు. దయచేసి ఆ మార్పు చూడండి.`,
+    ackAgreement: (lender) => `${lender} పంపిన అప్పు ఒప్పందం మీరు చూడటానికి ఎదురుచూస్తోంది.`,
+    reminders: "రుణదాత నుండి సందేశాలు",
+    reminderDefault: "రుణదాత మీకు గుర్తు చేస్తూ ఒక సందేశం పంపారు.",
+    reminderDue: (date) => `తేదీ: ${date}`,
+    collateralReturned: (item) => (item ? `${item} మీకు తిరిగి ఇచ్చినట్టు రుణదాత నమోదు చేశారు.` : "తాకట్టు వస్తువు మీకు తిరిగి ఇచ్చినట్టు రుణదాత నమోదు చేశారు.")
   }
 };

@@ -64,7 +64,18 @@ export const borrowerLoanDetailsCopy = {
     ask: "Ask a question about this loan",
     notFoundTitle: "Loan not found",
     notFoundText: "This loan is not visible on your phone. Go back and tap Refresh on the home screen.",
-    goHome: "Go to home"
+    goHome: "Go to home",
+    changeStatusPending: "Waiting for you to look at this change",
+    agreeChange: "I have seen and agree to this change",
+    disagreeChange: "I don't agree",
+    cannotAck: "This change has no date, so it cannot be acknowledged in the app. Ask your lender if anything is unclear.",
+    security: "Guarantor and security",
+    money: ({ rupees, paise }) => (paise ? `${rupees} rupees and ${paise} paise` : `${rupees} rupees`),
+    voiceOk: ({ principal, start, interest, paid, owed }) =>
+      `You borrowed ${principal}${start ? ` on ${start}` : ""}. Interest so far is ${interest}. You have paid ${paid}. Today you still have to pay ${owed}.`,
+    voiceSettled: "This loan is fully paid. Nothing more is due.",
+    voiceUnclear: "The amount for this loan cannot be shown yet. Your lender needs to complete the loan details.",
+    voiceDue: (text) => `${text}.`
   },
   te: {
     title: "మీ అప్పు",
@@ -131,6 +142,17 @@ export const borrowerLoanDetailsCopy = {
     ask: "ఈ అప్పు గురించి ప్రశ్న అడగండి",
     notFoundTitle: "అప్పు కనబడలేదు",
     notFoundText: "ఈ అప్పు మీ ఫోన్‌లో కనిపించడం లేదు. హోమ్‌కు వెళ్ళి 'మళ్ళీ చూడండి' నొక్కండి.",
-    goHome: "హోమ్‌కు వెళ్ళండి"
+    goHome: "హోమ్‌కు వెళ్ళండి",
+    changeStatusPending: "ఈ మార్పును మీరు ఇంకా చూడలేదు",
+    agreeChange: "ఈ మార్పు చూశాను, ఒప్పుకుంటున్నాను",
+    disagreeChange: "నేను ఒప్పుకోవడం లేదు",
+    cannotAck: "ఈ మార్పుకు తేదీ లేదు, అందుకే యాప్‌లో ఒప్పుకోలు నమోదు చేయలేం. సందేహం ఉంటే రుణదాతను అడగండి.",
+    security: "హామీదారు, తాకట్టు",
+    money: ({ rupees, paise }) => (paise ? `${rupees} రూపాయల ${paise} పైసలు` : `${rupees} రూపాయలు`),
+    voiceOk: ({ principal, start, interest, paid, owed }) =>
+      `మీరు ${start ? `${start} న ` : ""}${principal} తీసుకున్నారు. ఇప్పటివరకు వడ్డీ ${interest}. మీరు ${paid} కట్టారు. ఈరోజు మీరు ఇంకా కట్టవలసింది ${owed}.`,
+    voiceSettled: "ఈ అప్పు పూర్తిగా కట్టేశారు. ఇంకేమీ కట్టనవసరం లేదు.",
+    voiceUnclear: "ఈ అప్పు మొత్తం ఇంకా చూపించలేం. రుణదాత అప్పు వివరాలు పూర్తి చేయాలి.",
+    voiceDue: (text) => `${text}.`
   }
 };

@@ -1,14 +1,41 @@
-import { ExternalLink, FileText, FolderOpen, HelpCircle, Image as ImageIcon } from "lucide-react";
+import { AlertTriangle, ExternalLink, FileText, FolderOpen, HelpCircle, Image as ImageIcon } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useApp } from "../../context/AppContext";
 import { useCopy } from "../../i18n/useCopy";
 import { formatPaise, rupeesToPaise } from "../../utils/interestEngine";
 import { Badge, Card, EmptyState, Screen, Section } from "../../ui";
-import { dateKeyOf, toMillis, useBorrowerLoans } from "./borrowerData";
+import {
+  agreementVersions, collateralForLoan, collateralState, dateKeyOf, guarantorAckState, guarantorsForLoan, loanLabel, toMillis, useBorrowerLoans
+} from "./borrowerData";
+import { AcknowledgeButton, AcknowledgedLine, LoanSecurityRecords } from "./BorrowerLoanRecords";
 import { borrowerSharedCopy } from "./BorrowerShared.copy";
 import { borrowerDocumentsCopy } from "./BorrowerDocuments.copy";
 
 const isWebUrl = (url) => typeof url === "string" && /^https?:\/\//i.test(url);
+
+const HANDWRITTEN = "handwritten note";
+const isHandwritten = (ev) => String(ev?.category || "").toLowerCase() === HANDWRITTEN;
+
+/** One row of the expected-documents checklist. */
+function CheckRow({ label, status, tone, note }) {
+  return (
+    <div className="border-b border-line py-3 last:border-0">
+      <div className="flex items-start justify-between gap-3">
+        <span className="text-[16px] font-bold text-ink">{label}</span>
+        <Badge tone={tone}>{status}</Badge>
+      </div>
+      {note && <p className="mt-1 text-[14px] font-medium text-ink-muted">{note}</p>}
+    </div>
+  );
+}
+
+function UnclearNotice({ text }) {
+  return (
+    <p className="mt-3 flex items-center gap-2 rounded-xl bg-amber-50 p-3 text-[15px] font-bold text-amber-800">
+      <AlertTriangle size={20} className="shrink-0" /> {text}
+    </p>
+  );
+}
 
 function OpenLink({ href, children }) {
   return (
@@ -24,7 +51,7 @@ function OpenLink({ href, children }) {
 }
 
 export function BorrowerDocuments() {
-  const { agreements, evidence, payments } = useApp();
+  const { agreements, evidence, payments, guarantors, collateral, user } = useApp();
   const s = useCopy(borrowerDocumentsCopy);
   const sh = useCopy(borrowerSharedCopy);
   const items = useBorrowerLoans();
@@ -59,6 +86,7 @@ export function BorrowerDocuments() {
           </div>
           <Badge tone="brand">{s.uploaded}</Badge>
         </div>
+        {ev.imageUnclear === true && <UnclearNotice text={s.imageUnclear} />}
         {isWebUrl(ev.fileUrl) && <div className="mt-3"><OpenLink href={ev.fileUrl}>{s.open}</OpenLink></div>}
       </Card>
     );
@@ -67,12 +95,49 @@ export function BorrowerDocuments() {
   return (
     <Screen title={s.title} subtitle={s.subtitle}>
       {items.map(({ loan }) => {
-        const loanAgreements = agreements.filter((a) => a.loanId === loan.id && sameLender(a, loan)).sort(byNewest);
+        const versions = agreementVersions(loan, agreements, user?.uid);
+        const current = versions.find((v) => v.latest);
         const loanEvidence = evidence.filter((e) => e.loanId === loan.id && sameLender(e, loan)).sort(byNewest);
+        const notes = loanEvidence.filter(isHandwritten);
+        const loanGuarantors = guarantorsForLoan(loan, guarantors);
+        const loanCollateral = collateralForLoan(loan, collateral);
+        const agreementStatus = !current
+          ? { status: s.stMissing, tone: "ink", note: s.missingNote }
+          : current.ack
+            ? { status: s.stAcknowledged, tone: "brand" }
+            : { status: s.stAckPending, tone: "amber" };
+        const guarantorStatus = (g) => {
+          const st = guarantorAckState(g);
+          if (st === "recorded") return { status: s.stRecorded, tone: "brand" };
+          if (st === "disputed") return { status: s.stDisputed, tone: "rose" };
+          return { status: s.stNotRecorded, tone: "ink" };
+        };
         return (
-          <Section key={`${loan.lenderUid}_${loan.id}`} title={sh.loanFrom(loan.lenderName)}>
+          <Section key={`${loan.lenderUid}_${loan.id}`} title={`${sh.loanFrom(loan.lenderName)} · ${loanLabel(loan, sh)}`}>
             <div className="grid gap-3">
-              {loanAgreements.length === 0 ? (
+              <Card>
+                <p className="mb-1 text-[13px] font-bold uppercase tracking-wide text-ink-muted">{s.checklist}</p>
+                <CheckRow label={s.checklistAgreement} {...agreementStatus} />
+                <CheckRow
+                  label={s.checklistNote}
+                  {...(notes.length === 0
+                    ? { status: s.stMissing, tone: "ink", note: s.missingNote }
+                    : { status: s.stUploaded, tone: "brand", note: notes.some((n) => n.imageUnclear === true) ? s.imageUnclear : undefined })}
+                />
+                {loanGuarantors.map((g, i) => (
+                  <CheckRow key={g.id || i} label={s.checklistGuarantor(g.name)} {...guarantorStatus(g)} />
+                ))}
+                {loanCollateral.map((c, i) => (
+                  <CheckRow
+                    key={c.id || i}
+                    label={c.description ? `${s.checklistCollateral} · ${c.description}` : s.checklistCollateral}
+                    status={collateralState(c) === "returned" ? s.stReturned : s.stHeld}
+                    tone={collateralState(c) === "returned" ? "brand" : "amber"}
+                  />
+                ))}
+              </Card>
+
+              {versions.length === 0 ? (
                 <Card>
                   <div className="flex items-start gap-3">
                     <FileText size={22} className="mt-0.5 shrink-0 text-ink-muted" />
@@ -83,7 +148,7 @@ export function BorrowerDocuments() {
                   </div>
                 </Card>
               ) : (
-                loanAgreements.map((agr, i) => {
+                versions.map(({ agr, version, replaced, ack }, i) => {
                   const date = dateKeyOf(agr.generatedAt) || dateKeyOf(agr.createdAt);
                   const files = [
                     [agr.fileUrl || agr.pdfUrl, s.agreementFile],
@@ -92,20 +157,43 @@ export function BorrowerDocuments() {
                     [agr.witnessSignUrl, s.witnessSignature]
                   ].filter(([url]) => isWebUrl(url));
                   return (
-                    <Card key={agr.id || i}>
+                    <Card key={agr.id || i} className={replaced ? "opacity-80" : ""}>
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <p className="text-[16px] font-bold text-ink">{s.agreement}</p>
+                          <p className="text-[16px] font-bold text-ink">{s.agreement} · {s.version(version)}</p>
                           {date && <p className="mt-0.5 text-[14px] font-medium text-ink-muted">{sh.date(date)}</p>}
                           {agr.witnessName && <p className="mt-0.5 text-[14px] font-medium text-ink-muted">{s.witness(agr.witnessName)}</p>}
                         </div>
-                        <Badge tone="brand">{s.agreementRecorded}</Badge>
+                        <div className="flex shrink-0 flex-col items-end gap-1">
+                          {replaced
+                            ? <Badge tone="ink">{s.stReplaced}</Badge>
+                            : ack ? <Badge tone="brand">{s.stAcknowledged}</Badge> : <Badge tone="amber">{s.stAckPending}</Badge>}
+                          {files.length > 0 && <Badge tone="brand">{s.stUploaded}</Badge>}
+                        </div>
                       </div>
+                      {agr.imageUnclear === true && <UnclearNotice text={s.imageUnclear} />}
                       {files.length === 0 ? (
                         <p className="mt-2 text-[14px] font-medium text-ink-muted">{s.agreementNoFile}</p>
                       ) : (
                         <div className="mt-3 flex flex-wrap gap-2">
                           {files.map(([url, label]) => <OpenLink key={url} href={url}>{label}</OpenLink>)}
+                        </div>
+                      )}
+                      {replaced ? (
+                        <p className="mt-3 text-[14px] font-medium text-ink-muted">{s.replacedHelp}</p>
+                      ) : (
+                        <div className="mt-4 border-t border-line pt-4">
+                          {ack ? (
+                            <AcknowledgedLine ack={ack} />
+                          ) : (
+                            <AcknowledgeButton
+                              label={s.agreeAgreement}
+                              lenderUid={loan.lenderUid}
+                              collectionName="agreements"
+                              docId={agr.id}
+                              extra={{ kind: "agreement", version }}
+                            />
+                          )}
                         </div>
                       )}
                     </Card>
@@ -114,6 +202,12 @@ export function BorrowerDocuments() {
               )}
               {loanEvidence.map(evidenceCard)}
             </div>
+            {(loanGuarantors.length > 0 || loanCollateral.length > 0) && (
+              <div className="mt-4">
+                <h3 className="mb-2 px-1 text-[13px] font-bold uppercase tracking-wide text-ink-muted">{s.security}</h3>
+                <LoanSecurityRecords guarantors={loanGuarantors} collateral={loanCollateral} />
+              </div>
+            )}
           </Section>
         );
       })}
