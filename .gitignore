@@ -48,3 +48,10 @@ Thumbs.db
 # Firebase
 .firebase/
 firebase-debug.log
+
+# Local toolchain, build output and debug logs
+.tools/
+*.apk
+firestore-debug.log
+storage-debug.log
+ui-debug.log
