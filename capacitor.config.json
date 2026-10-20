@@ -9,7 +9,7 @@
     "SplashScreen": {
       "launchShowDuration": 800,
       "launchAutoHide": true,
-      "backgroundColor": "#13775e",
+      "backgroundColor": "#0f5a47",
       "showSpinner": false
     },
     "StatusBar": {
