@@ -62,6 +62,16 @@ export async function buyPlan({ planId, description, prefillName, prefillContact
         try {
           resolve(await post("/api/razorpay/verify", response));
         } catch (err) {
+          // Money may have been taken even though confirming failed (for
+          // example a dropped connection). Ask the server to check with
+          // Razorpay directly before reporting an error.
+          try {
+            const recovered = await reconcilePlans();
+            const hit = recovered.activated?.find((a) => a.orderId === order.orderId);
+            if (hit) return resolve(hit);
+          } catch {
+            /* fall through to the original error */
+          }
           reject(err);
         }
       },
@@ -72,6 +82,11 @@ export async function buyPlan({ planId, description, prefillName, prefillContact
     );
     checkout.open();
   });
+}
+
+/** Server checks recent unfinished orders with Razorpay and activates any that were paid. */
+export function reconcilePlans() {
+  return post("/api/razorpay/reconcile", {});
 }
 
 export const isTestKey = (keyId) => String(keyId || "").startsWith("rzp_test_");

@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import { initializeApp, getApps } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
-import { activatePlan, confirmPlanPayment, handleWebhookEvent, startPlanOrder } from "../api/_lib/planPayments.js";
+import { activatePlan, confirmPlanPayment, handleWebhookEvent, reconcilePlanOrders, startPlanOrder } from "../api/_lib/planPayments.js";
 import { verifyCheckoutSignature, verifyWebhookSignature } from "../api/_lib/razorpay.js";
 import { effectivePlan, PLANS } from "../src/config/plans.js";
 
@@ -33,6 +33,8 @@ function fakeRazorpay() {
       p.status = "captured";
       return reply(200, p);
     }
+    const orderPays = path.match(/^\/orders\/([^/]+)\/payments$/);
+    if (orderPays) return reply(200, { items: [...payments.values()].filter((p) => p.order_id === orderPays[1]) });
     const get = path.match(/^\/payments\/([^/]+)$/);
     if (get) return payments.has(get[1]) ? reply(200, payments.get(get[1])) : reply(404, { error: { description: "not found" } });
     return reply(404, {});
@@ -166,6 +168,49 @@ describe("plan purchase", () => {
     assert.equal(r.planId, "advanced");
     const ignored = await handleWebhookEvent({ db, event: { event: "payment.failed", payload: { payment: { entity: payment } } } });
     assert.equal(ignored.ignored, true);
+  });
+
+  test("a dropped connection to Razorpay is retried", async () => {
+    const rzp = fakeRazorpay();
+    const { orderId } = await startPlanOrder({ db, keys, uid: UID, planId: "regular", fetchImpl: rzp.fetchImpl });
+    const { paymentId, signature } = rzp.pay(orderId);
+    let drops = 2;
+    const flaky = async (url, init) => {
+      if (drops > 0) {
+        drops -= 1;
+        throw new TypeError("fetch failed");
+      }
+      return rzp.fetchImpl(url, init);
+    };
+    const result = await confirmPlanPayment({ db, keys, uid: UID, orderId, paymentId, signature, fetchImpl: flaky });
+    assert.equal(result.planId, "regular");
+    assert.equal(drops, 0);
+  });
+
+  test("recovery activates a paid order whose confirmation never arrived", async () => {
+    const rzp = fakeRazorpay();
+    const { orderId } = await startPlanOrder({ db, keys, uid: UID, planId: "regular", fetchImpl: rzp.fetchImpl });
+    rzp.pay(orderId); // paid at Razorpay, but the app never confirmed
+    const unpaid = await startPlanOrder({ db, keys, uid: UID, planId: "advanced", fetchImpl: rzp.fetchImpl });
+    const r = await reconcilePlanOrders({ db, keys, uid: UID, fetchImpl: rzp.fetchImpl });
+    assert.equal(r.checked, 2);
+    assert.equal(r.activated.length, 1);
+    assert.equal(r.activated[0].orderId, orderId);
+    const sub = (await db.doc(`users/${UID}/subscription/current`).get()).data();
+    assert.equal(sub.planId, "regular");
+    assert.equal((await db.doc(`users/${UID}/planPayments/${unpaid.orderId}`).get()).data().status, "created");
+    const again = await reconcilePlanOrders({ db, keys, uid: UID, fetchImpl: rzp.fetchImpl });
+    assert.equal(again.activated.length, 0); // already paid orders are not re-checked
+  });
+
+  test("recovery ignores failed or wrong-amount payments", async () => {
+    const rzp = fakeRazorpay();
+    const a = await startPlanOrder({ db, keys, uid: UID, planId: "regular", fetchImpl: rzp.fetchImpl });
+    rzp.pay(a.orderId, { status: "failed" });
+    rzp.pay(a.orderId, { amount: 100 });
+    const r = await reconcilePlanOrders({ db, keys, uid: UID, fetchImpl: rzp.fetchImpl });
+    assert.equal(r.activated.length, 0);
+    assert.equal((await db.doc(`users/${UID}/subscription/current`).get()).exists, false);
   });
 
   test("expired or missing subscriptions fall back to the free plan", () => {

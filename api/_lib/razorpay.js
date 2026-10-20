@@ -14,24 +14,44 @@ function authHeader({ keyId, keySecret }) {
   return `Basic ${Buffer.from(`${keyId}:${keySecret}`).toString("base64")}`;
 }
 
-async function call(keys, path, { method = "GET", body, fetchImpl = fetch } = {}) {
-  const res = await fetchImpl(`${API}${path}`, {
-    method,
-    headers: { Authorization: authHeader(keys), "Content-Type": "application/json" },
-    body: body ? JSON.stringify(body) : undefined
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Retries when the connection drops or Razorpay has a temporary problem
+// (network errors; 429/5xx for reads). A retried order creation can at worst
+// leave an extra unpaid order, which expires harmlessly. Captures are not
+// retried (see capturePayment).
+async function call(keys, path, { method = "GET", body, fetchImpl = fetch, attempts = 3 } = {}) {
+  let lastError;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    let res;
+    try {
+      res = await fetchImpl(`${API}${path}`, {
+        method,
+        headers: { Authorization: authHeader(keys), "Content-Type": "application/json" },
+        body: body ? JSON.stringify(body) : undefined
+      });
+    } catch (err) {
+      lastError = Object.assign(new Error("Could not reach Razorpay. Please try again."), { status: 502, cause: err });
+      if (attempt < attempts) await sleep(300 * attempt);
+      continue;
+    }
+    const data = await res.json().catch(() => ({}));
+    if (res.ok) return data;
     const message = data?.error?.description || `Razorpay request failed (${res.status})`;
-    throw Object.assign(new Error(message), { status: 502 });
+    lastError = Object.assign(new Error(message), { status: 502 });
+    const temporary = res.status === 429 || res.status >= 500;
+    if (!temporary || method !== "GET" || attempt === attempts) break;
+    await sleep(300 * attempt);
   }
-  return data;
+  throw lastError;
 }
 
 export const createOrder = (keys, order, opts) => call(keys, "/orders", { method: "POST", body: order, ...opts });
 export const fetchPayment = (keys, paymentId, opts) => call(keys, `/payments/${encodeURIComponent(paymentId)}`, opts);
+export const fetchOrderPayments = (keys, orderId, opts) =>
+  call(keys, `/orders/${encodeURIComponent(orderId)}/payments`, opts).then((r) => r.items || []);
 export const capturePayment = (keys, paymentId, amount, opts) =>
-  call(keys, `/payments/${encodeURIComponent(paymentId)}/capture`, { method: "POST", body: { amount, currency: "INR" }, ...opts });
+  call(keys, `/payments/${encodeURIComponent(paymentId)}/capture`, { method: "POST", body: { amount, currency: "INR" }, attempts: 1, ...opts });
 
 function safeEqualHex(a, b) {
   const x = Buffer.from(String(a || ""), "utf8");

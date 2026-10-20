@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Check, ShieldCheck } from "lucide-react";
 import { useApp } from "../context/AppContext";
 import { useCopy } from "../i18n/useCopy";
 import { PLANS } from "../config/plans";
-import { buyPlan } from "../services/planCheckout";
+import { buyPlan, reconcilePlans } from "../services/planCheckout";
 import { formatPaise } from "../utils/interestEngine";
 import { Badge, Button, Card, Notice, Screen, Section } from "../ui";
 import { plansCopy } from "./Plans.copy";
@@ -23,6 +23,25 @@ export function Plans() {
   const fmt = (d) => d?.toLocaleDateString(locale, { day: "numeric", month: "short", year: "numeric" });
   const activeBorrowers = borrowers.filter((b) => b.status !== "inactive").length;
   const paidUntil = plan.id !== "simple" ? toDate(subscription?.currentPeriodEnd) : null;
+
+  // If an earlier payment went through but was not confirmed, activate it now.
+  useEffect(() => {
+    let cancelled = false;
+    reconcilePlans()
+      .then(async (result) => {
+        const hit = result.activated?.find((a) => !a.alreadyApplied);
+        if (!hit || cancelled) return;
+        await refreshData();
+        if (!cancelled) setMessage({ tone: "success", text: s.success(s.names[hit.planId], fmt(new Date(hit.currentPeriodEnd))) });
+      })
+      .catch(() => {
+        /* payments not configured or offline: nothing to recover */
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const choose = async (planId) => {
     setMessage(null);

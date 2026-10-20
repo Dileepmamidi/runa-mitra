@@ -4,7 +4,7 @@
 //   users/{uid}/subscription/current     { planId, status, currentPeriodEnd, lastOrderId, lastPaymentId }
 import { Timestamp } from "firebase-admin/firestore";
 import { PAID_PLAN_IDS, PLANS, nextPeriodEnd } from "../../src/config/plans.js";
-import { capturePayment, createOrder, fetchPayment, verifyCheckoutSignature } from "./razorpay.js";
+import { capturePayment, createOrder, fetchOrderPayments, fetchPayment, verifyCheckoutSignature } from "./razorpay.js";
 
 const planPaymentRef = (db, uid, orderId) => db.doc(`users/${uid}/planPayments/${orderId}`);
 const subscriptionRef = (db, uid) => db.doc(`users/${uid}/subscription/current`);
@@ -57,6 +57,17 @@ export async function activatePlan({ db, uid, orderId, paymentId, source, now = 
   });
 }
 
+// Captures an authorized payment. If the capture call fails (for example the
+// connection dropped after Razorpay captured it), re-reads the payment.
+async function ensureCaptured({ keys, payment, amountPaise, fetchImpl }) {
+  if (payment.status !== "authorized") return payment;
+  try {
+    return await capturePayment(keys, payment.id, amountPaise, { fetchImpl });
+  } catch {
+    return fetchPayment(keys, payment.id, { fetchImpl });
+  }
+}
+
 /** Called after Razorpay Checkout succeeds in the app. */
 export async function confirmPlanPayment({ db, keys, uid, orderId, paymentId, signature, fetchImpl }) {
   if (!orderId || !paymentId || !signature) throw fail(400, "Payment details are missing.");
@@ -70,7 +81,7 @@ export async function confirmPlanPayment({ db, keys, uid, orderId, paymentId, si
   if (payment.order_id !== orderId || Number(payment.amount) !== expected.amountPaise || payment.currency !== "INR") {
     throw fail(400, "Payment does not match the order.");
   }
-  if (payment.status === "authorized") payment = await capturePayment(keys, paymentId, expected.amountPaise, { fetchImpl });
+  payment = await ensureCaptured({ keys, payment, amountPaise: expected.amountPaise, fetchImpl });
   if (payment.status !== "captured") throw fail(402, "Payment is not complete.");
 
   return activatePlan({ db, uid, orderId, paymentId, source: "checkout" });
@@ -85,4 +96,34 @@ export async function handleWebhookEvent({ db, event }) {
   const paySnap = await planPaymentRef(db, uid, payment.order_id).get();
   if (!paySnap.exists || Number(payment.amount) !== paySnap.data().amountPaise) return { ignored: true };
   return activatePlan({ db, uid, orderId: payment.order_id, paymentId: payment.id, source: "webhook" });
+}
+
+const RECONCILE_WINDOW_MS = 7 * 86400000;
+
+/**
+ * Recovery: asks Razorpay about this user's recent unfinished orders and
+ * activates the plan for any that were actually paid. Covers payments whose
+ * confirmation from the app failed (dropped connection, app closed).
+ */
+export async function reconcilePlanOrders({ db, keys, uid, fetchImpl, now = Date.now() }) {
+  const snap = await db.collection(`users/${uid}/planPayments`).where("status", "==", "created").get();
+  const recent = snap.docs.filter((d) => {
+    const created = d.data().createdAt?.toMillis?.() || 0;
+    return now - created < RECONCILE_WINDOW_MS;
+  });
+  const activated = [];
+  for (const orderDoc of recent) {
+    const expected = orderDoc.data();
+    const payments = await fetchOrderPayments(keys, orderDoc.id, { fetchImpl });
+    for (const candidate of payments) {
+      if (Number(candidate.amount) !== expected.amountPaise || candidate.currency !== "INR") continue;
+      if (!["captured", "authorized"].includes(candidate.status)) continue;
+      const payment = await ensureCaptured({ keys, payment: candidate, amountPaise: expected.amountPaise, fetchImpl });
+      if (payment.status !== "captured") continue;
+      const result = await activatePlan({ db, uid, orderId: orderDoc.id, paymentId: payment.id, source: "reconcile", now });
+      activated.push({ orderId: orderDoc.id, ...result });
+      break;
+    }
+  }
+  return { checked: recent.length, activated };
 }

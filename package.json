@@ -9,13 +9,13 @@
     "preview": "vite preview --host 0.0.0.0",
     "lint": "eslint .",
     "test": "node --test \"src/**/*.test.js\"",
-    "test:rules": "firebase emulators:exec --only firestore,storage --project demo-runa-mitra \"node --test --test-concurrency=1 tests/rules.test.js\"",
+    "test:rules": "firebase emulators:exec --config firebase.test.json --only firestore,storage --project demo-runa-mitra \"node --test --test-concurrency=1 tests/rules.test.js\"",
     "emulators": "firebase emulators:start --only auth,firestore,storage --project demo-runa-mitra",
     "dev:emulator": "vite --mode emulator --host 0.0.0.0",
     "seed:emulator": "node scripts/seed-emulator.mjs",
     "android:sync": "vite build && cap sync android",
     "android:open": "cap open android",
-    "test:payments": "firebase emulators:exec --only firestore --project demo-runa-mitra \"node --test --test-concurrency=1 tests/payments.test.js\""
+    "test:payments": "firebase emulators:exec --config firebase.test.json --only firestore --project demo-runa-mitra \"node --test --test-concurrency=1 tests/payments.test.js\""
   },
   "dependencies": {
     "@capacitor-community/text-to-speech": "^8.0.2",
