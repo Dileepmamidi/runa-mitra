@@ -1,31 +1,54 @@
-import { Link } from "react-router-dom";
-import { Phone } from "lucide-react";
-import { currency } from "../utils/loanMath";
-import { StatusBadge } from "./StatusBadge";
+import { useCopy } from "../i18n/useCopy";
+import { calculateLoan, formatPaise, toDateKey } from "../utils/interestEngine";
+import { Avatar, Badge, ListRow } from "../ui";
+import { borrowerCardCopy } from "./BorrowerCard.copy";
 
-export function BorrowerCard({ borrower }) {
+export const borrowerName = (b) => b?.personalInfo?.name || b?.name || "";
+
+// Outstanding for one borrower, from the interest engine only. Loans whose
+// terms are incomplete are counted separately and never guessed.
+export function borrowerOutstanding(borrowerId, loans, payments, asOf = toDateKey(new Date())) {
+  let outstandingPaise = 0;
+  let unclear = 0;
+  let count = 0;
+  for (const loan of loans) {
+    if (loan.borrowerId !== borrowerId) continue;
+    count += 1;
+    const calc = calculateLoan(loan, payments.filter((p) => p.loanId === loan.id), asOf);
+    if (calc.status === "ok") outstandingPaise += calc.outstandingPaise;
+    else unclear += 1;
+  }
+  return { outstandingPaise, unclear, count };
+}
+
+/** One borrower row for lists: avatar, village, engine outstanding, app access. */
+export function BorrowerCard({ borrower, summary }) {
+  const s = useCopy(borrowerCardCopy);
+  const name = borrowerName(borrower) || s.unknown;
+  const sub = [borrower.village, borrower.mobile].filter(Boolean).join(" · ");
   return (
-    <Link
+    <ListRow
       to={`/borrowers/${borrower.id}`}
-      className="flex gap-3 rounded-[8px] bg-white p-4 shadow-soft transition active:scale-[0.99]"
-    >
-      <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-leaf-100 text-lg font-black text-leaf-700">
-        {borrower.photo}
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-start justify-between gap-2">
-          <div>
-            <h3 className="truncate text-base font-black text-slate-950">{borrower.name}</h3>
-            <p className="text-sm text-slate-500">{borrower.occupation}</p>
-          </div>
-          <StatusBadge status={borrower.status} />
-        </div>
-        <div className="mt-3 flex items-center justify-between gap-3 text-sm">
-          <span className="font-bold text-danger-500">{currency(borrower.pendingAmount)}</span>
-          <span className="text-slate-500">{borrower.dueDate}</span>
-          <Phone size={17} className="text-leaf-600" />
-        </div>
-      </div>
-    </Link>
+      avatar={<Avatar name={name} src={borrower.photoUrl || undefined} />}
+      title={name}
+      subtitle={
+        <span className="flex flex-wrap items-center gap-1.5">
+          {sub && <span className="truncate">{sub}</span>}
+          {borrower.linkedUid ? <Badge tone="brand">{s.usingApp}</Badge> : <Badge>{s.notInvited}</Badge>}
+        </span>
+      }
+      trailing={
+        summary ? (
+          summary.count === 0 ? (
+            <span className="text-sm font-semibold text-ink-muted">{s.noLoans}</span>
+          ) : (
+            <span className="flex flex-col items-end gap-1">
+              <span className="tabular text-[16px] font-extrabold text-ink">{formatPaise(summary.outstandingPaise)}</span>
+              {summary.unclear > 0 && <Badge tone="amber">{s.needsCheck}</Badge>}
+            </span>
+          )
+        ) : null
+      }
+    />
   );
 }

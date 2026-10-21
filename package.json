@@ -7,20 +7,44 @@
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test": "node --test \"src/**/*.test.js\"",
+    "test:rules": "firebase emulators:exec --config firebase.test.json --only firestore,storage --project demo-runa-mitra \"node --test --test-concurrency=1 tests/rules.test.js\"",
+    "emulators": "firebase emulators:start --only auth,firestore,storage --project demo-runa-mitra",
+    "dev:emulator": "vite --mode emulator --host 0.0.0.0",
+    "seed:emulator": "node scripts/seed-emulator.mjs",
+    "android:sync": "vite build && cap sync android",
+    "android:open": "cap open android",
+    "test:payments": "firebase emulators:exec --config firebase.test.json --only firestore --project demo-runa-mitra \"node --test --test-concurrency=1 tests/payments.test.js\""
   },
   "dependencies": {
+    "@capacitor-community/text-to-speech": "^8.0.2",
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/app": "^8.1.2",
+    "@capacitor/core": "^8.5.2",
+    "@capacitor/filesystem": "^8.1.5",
+    "@capacitor/share": "^8.0.3",
+    "@capacitor/splash-screen": "^8.0.2",
+    "@capacitor/status-bar": "^8.0.4",
+    "@fontsource-variable/inter": "^5.3.0",
+    "@fontsource-variable/noto-sans-telugu": "^5.3.0",
     "@vitejs/plugin-react": "^5.0.0",
     "firebase": "^12.0.0",
+    "firebase-admin": "^14.5.0",
     "lucide-react": "^0.468.0",
-    "vite": "^6.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-router-dom": "^7.0.0"
+    "react-router-dom": "^7.0.0",
+    "tesseract.js": "^7.0.0",
+    "vite": "^6.0.0"
   },
   "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^8.5.2",
+    "@firebase/rules-unit-testing": "^5.0.2",
     "autoprefixer": "^10.4.20",
     "eslint": "^9.15.0",
+    "firebase-tools": "^14.27.0",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.15"
   }

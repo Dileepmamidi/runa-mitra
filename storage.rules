@@ -1,0 +1,41 @@
+rules_version = '2';
+
+// Runa Mitra Storage rules.
+// Files live under users/{lenderUid}/evidence/... and belong to that lender.
+// Linked borrowers may upload payment screenshots and extension voice notes
+// into users/{lenderUid}/evidence/{payments|extensions}/{borrowerId}/.
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function allowedUpload() {
+      return request.resource.size < 15 * 1024 * 1024
+        && (request.resource.contentType.matches('image/.*')
+          || request.resource.contentType.matches('audio/.*')
+          || request.resource.contentType == 'application/pdf');
+    }
+
+    function isLinkedBorrower(lenderUid, borrowerId) {
+      return firestore.exists(/databases/(default)/documents/users/$(lenderUid)/borrowers/$(borrowerId))
+        && firestore.get(/databases/(default)/documents/users/$(lenderUid)/borrowers/$(borrowerId)).data.get('linkedUid', null) == request.auth.uid;
+    }
+
+    match /users/{lenderUid}/{allPaths=**} {
+      allow read, delete: if signedIn() && request.auth.uid == lenderUid;
+      allow create, update: if signedIn() && request.auth.uid == lenderUid && allowedUpload();
+    }
+
+    match /users/{lenderUid}/evidence/{kind}/{borrowerId}/{fileName} {
+      allow create: if signedIn()
+        && kind in ['payments', 'extensions']
+        && allowedUpload()
+        && isLinkedBorrower(lenderUid, borrowerId);
+      allow read: if signedIn()
+        && kind in ['payments', 'extensions']
+        && isLinkedBorrower(lenderUid, borrowerId);
+    }
+  }
+}

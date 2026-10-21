@@ -1,45 +1,49 @@
 import { useNavigate } from "react-router-dom";
-import { Languages } from "lucide-react";
+import { Check } from "lucide-react";
 import { useApp } from "../context/AppContext";
-import { ActionButton } from "../components/ActionButton";
+import { useCopy } from "../i18n/useCopy";
+import { Button } from "../ui";
+import { languageCopy } from "./Onboarding.copy";
+
+function LanguageOption({ selected, title, hint, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex min-h-[84px] items-center gap-4 rounded-2xl border-2 bg-white px-5 text-left shadow-soft transition active:scale-[0.99] ${
+        selected ? "border-brand-600" : "border-transparent"
+      }`}
+    >
+      <span className="flex-1">
+        <span className="block text-[26px] font-extrabold text-ink">{title}</span>
+        <span className="block text-sm font-semibold text-ink-muted">{hint}</span>
+      </span>
+      <span className={`flex h-8 w-8 items-center justify-center rounded-full ${selected ? "bg-brand-600 text-white" : "border-2 border-line"}`}>
+        {selected && <Check size={18} strokeWidth={3} />}
+      </span>
+    </button>
+  );
+}
 
 export function LanguageSelection() {
   const { setLanguage, language } = useApp();
   const navigate = useNavigate();
-
-  const choose = (next) => {
-    setLanguage(next);
-    navigate("/login");
-  };
+  const s = useCopy(languageCopy);
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-5">
-      <Languages className="mb-5 text-leaf-600" size={44} />
-      <h1 className="text-3xl font-black text-slate-950">భాష ఎంచుకోండి</h1>
-      <p className="mt-2 text-base font-semibold text-slate-600">Choose your preferred language</p>
-      <div className="mt-8 grid gap-4">
-        <button
-          onClick={() => choose("te")}
-          className={`rounded-[8px] bg-white p-5 text-left shadow-soft ring-2 ${
-            language === "te" ? "ring-leaf-600" : "ring-transparent"
-          }`}
-        >
-          <p className="text-2xl font-black text-slate-950">తెలుగు</p>
-          <p className="mt-1 text-sm font-semibold text-slate-500">Default for Telangana and Andhra Pradesh</p>
-        </button>
-        <button
-          onClick={() => choose("en")}
-          className={`rounded-[8px] bg-white p-5 text-left shadow-soft ring-2 ${
-            language === "en" ? "ring-leaf-600" : "ring-transparent"
-          }`}
-        >
-          <p className="text-2xl font-black text-slate-950">English</p>
-          <p className="mt-1 text-sm font-semibold text-slate-500">Simple English labels</p>
-        </button>
+    <main className="safe-top mx-auto flex min-h-screen max-w-md flex-col bg-canvas px-5 pb-8">
+      <div className="flex-1 pt-16">
+        <img src="/logo.svg" alt="" className="h-14 w-14 rounded-2xl shadow-soft" />
+        <h1 className="mt-6 text-[30px] font-extrabold leading-tight text-ink">{s.title}</h1>
+        <p className="mt-2 text-[16px] font-medium text-ink-soft">{s.subtitle}</p>
+        <div className="mt-8 grid gap-3">
+          <LanguageOption selected={language === "te"} title="తెలుగు" hint={s.teluguHint} onClick={() => setLanguage("te")} />
+          <LanguageOption selected={language === "en"} title="English" hint={s.englishHint} onClick={() => setLanguage("en")} />
+        </div>
       </div>
-      <ActionButton className="mt-8" onClick={() => navigate("/login")}>
-        Continue
-      </ActionButton>
+      <Button size="lg" block onClick={() => { setLanguage(language); navigate("/login"); }}>
+        {s.continue}
+      </Button>
     </main>
   );
 }

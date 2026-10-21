@@ -1,19 +1,24 @@
-import { Lock } from "lucide-react";
+import { Eye, Settings as SettingsIcon } from "lucide-react";
 import { useApp } from "../context/AppContext";
-import { Card } from "./Card";
+import { useCopy } from "../i18n/useCopy";
+import { Button, EmptyState } from "../ui";
+import { modeGateCopy } from "./ModeGate.copy";
 
-const rank = { Simple: 1, Regular: 2, Advanced: 3 };
+// Display modes control how much detail is shown. They are not paid plans.
+// "Simple" is the older name for "Basic".
+const rank = { Basic: 1, Simple: 1, Regular: 2, Advanced: 3 };
 
 export function ModeGate({ min = "Regular", children, label }) {
   const { appMode } = useApp();
-  if (rank[appMode] >= rank[min]) return children;
+  const s = useCopy(modeGateCopy);
+  if ((rank[appMode] || 1) >= rank[min]) return children;
 
   return (
-    <Card className="border border-dashed border-leaf-200 bg-leaf-50">
-      <div className="flex items-center gap-3 text-leaf-700">
-        <Lock size={18} />
-        <p className="text-sm font-bold">{label || `${min} mode feature`}</p>
-      </div>
-    </Card>
+    <EmptyState
+      icon={Eye}
+      title={label || s.title(s.modes[min] || min)}
+      text={s.text}
+      action={<Button variant="secondary" icon={SettingsIcon} to="/settings">{s.openSettings}</Button>}
+    />
   );
 }

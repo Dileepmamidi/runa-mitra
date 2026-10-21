@@ -1,0 +1,216 @@
+rules_version = '2';
+
+// Runa Mitra Firestore rules.
+//
+// Data lives under users/{lenderUid}/... and belongs to that lender.
+// A borrower can read a lender's record only when the lender's app has stamped
+// it with borrowerUid == the borrower's auth uid, which happens only after the
+// borrower accepted an invitation sent to their OTP-verified phone number.
+// The lender's borrowers collection (private notes, contacts) is never
+// readable by borrowers.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isUser(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function myPhone() {
+      return signedIn() ? request.auth.token.get('phone_number', '') : '';
+    }
+
+    function onlyChanges(keys) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
+    }
+
+    function borrowerPath(lenderUid, borrowerId) {
+      return /databases/$(database)/documents/users/$(lenderUid)/borrowers/$(borrowerId);
+    }
+
+    function isLinkedBorrower(lenderUid, borrowerId) {
+      return signedIn()
+        && exists(borrowerPath(lenderUid, borrowerId))
+        && get(borrowerPath(lenderUid, borrowerId)).data.get('linkedUid', null) == request.auth.uid;
+    }
+
+    function loanBelongsTo(lenderUid, loanId, borrowerId) {
+      return exists(/databases/$(database)/documents/users/$(lenderUid)/loans/$(loanId))
+        && get(/databases/$(database)/documents/users/$(lenderUid)/loans/$(loanId)).data.borrowerId == borrowerId;
+    }
+
+    function invitePath(lenderUid, borrowerId) {
+      return /databases/$(database)/documents/borrowerLinks/$(myPhone())/invites/$(lenderUid + '_' + borrowerId);
+    }
+
+    function hasPendingInvite(lenderUid, borrowerId) {
+      return myPhone() != ''
+        && exists(invitePath(lenderUid, borrowerId))
+        && get(invitePath(lenderUid, borrowerId)).data.status == 'pending'
+        && get(invitePath(lenderUid, borrowerId)).data.lenderUid == lenderUid;
+    }
+
+    // Invitations created by older app versions (array on borrowerLinks/{phone}).
+    // Also require the lender's own record to carry this phone number.
+    function hasLegacyInvite(lenderUid, borrowerId, borrower) {
+      let legacyPath = /databases/$(database)/documents/borrowerLinks/$(myPhone());
+      let mobile = string(borrower.get('mobile', ''));
+      return myPhone() != ''
+        && exists(legacyPath)
+        && {'lenderUid': lenderUid, 'borrowerId': borrowerId} in get(legacyPath).data.get('lenders', [])
+        && (mobile == myPhone() || '+91' + mobile == myPhone());
+    }
+
+    // Family member invited by this lender and accepted (read-only access).
+    function isFamilyOf(lenderUid) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(lenderUid)/familyMembers/$(request.auth.uid));
+    }
+
+    // Borrower adds exactly one acknowledgement of their own and changes nothing else.
+    function isOwnAcknowledgement() {
+      let before = resource.data.get('acknowledgements', []);
+      let after = request.resource.data.acknowledgements;
+      return onlyChanges(['acknowledgements'])
+        && after.size() == before.size() + 1
+        && after.hasAll(before)
+        && after[after.size() - 1].uid == request.auth.uid;
+    }
+
+    match /users/{lenderUid} {
+      // Lender: full control of their own profile.
+      allow read, write: if isUser(lenderUid);
+      allow read: if isFamilyOf(lenderUid);
+
+      // Lender: full control of their records, except the plan subscription
+      // and plan payments, which only the payment server writes.
+      match /{coll}/{docId} {
+        allow read: if isUser(lenderUid);
+        allow write: if isUser(lenderUid) && !(coll in ['subscription', 'planPayments']);
+        allow read: if isFamilyOf(lenderUid)
+          && coll in ['borrowers', 'loans', 'payments', 'agreements', 'reminders', 'guarantors', 'collateral'];
+      }
+
+      // A person accepts a family-access invitation sent to their phone.
+      match /familyMembers/{memberUid} {
+        allow create: if signedIn()
+          && memberUid == request.auth.uid
+          && request.resource.data.keys().hasOnly(['phone', 'acceptedAt', 'permission'])
+          && request.resource.data.phone == myPhone()
+          && exists(/databases/$(database)/documents/familyLinks/$(myPhone())/invites/$(lenderUid))
+          && get(/databases/$(database)/documents/familyLinks/$(myPhone())/invites/$(lenderUid)).data.status == 'pending';
+        allow delete: if signedIn() && memberUid == request.auth.uid;
+      }
+
+      // Linked borrower acknowledges a loan change or an agreement.
+      match /loans/{loanId} {
+        allow update: if signedIn() && !isUser(lenderUid)
+          && resource.data.get('borrowerUid', null) == request.auth.uid
+          && isOwnAcknowledgement();
+      }
+      match /agreements/{agreementId} {
+        allow update: if signedIn() && !isUser(lenderUid)
+          && resource.data.get('borrowerUid', null) == request.auth.uid
+          && isOwnAcknowledgement();
+      }
+
+      // Borrower accepts an invitation: may set only linkedUid/linkedAt to
+      // themselves, only once.
+      match /borrowers/{borrowerId} {
+        allow update: if signedIn()
+          && !isUser(lenderUid)
+          && onlyChanges(['linkedUid', 'linkedAt'])
+          && request.resource.data.linkedUid == request.auth.uid
+          && resource.data.get('linkedUid', null) == null
+          && (hasPendingInvite(lenderUid, borrowerId) || hasLegacyInvite(lenderUid, borrowerId, resource.data));
+      }
+
+      // Records shared with the linked borrower.
+      match /{coll}/{docId} {
+        allow read: if signedIn()
+          && coll in ['loans', 'payments', 'agreements', 'reminders', 'evidence', 'messages', 'guarantors', 'collateral']
+          && resource.data.get('borrowerUid', null) == request.auth.uid;
+      }
+
+      // Borrower reports a payment. It stays pending until the lender approves.
+      match /payments/{paymentId} {
+        allow create: if signedIn()
+          && !isUser(lenderUid)
+          && request.resource.data.borrowerUid == request.auth.uid
+          && request.resource.data.status == 'pending_verification'
+          && request.resource.data.type == 'borrower_submitted'
+          && request.resource.data.amount is number
+          && request.resource.data.amount > 0
+          && isLinkedBorrower(lenderUid, request.resource.data.borrowerId)
+          && loanBelongsTo(lenderUid, request.resource.data.loanId, request.resource.data.borrowerId);
+      }
+
+      // Borrower sends an extension request, clarification or dispute.
+      match /messages/{messageId} {
+        allow create: if signedIn()
+          && !isUser(lenderUid)
+          && request.resource.data.borrowerUid == request.auth.uid
+          && request.resource.data.status == 'pending'
+          && request.resource.data.type in ['extension_request', 'clarification', 'dispute']
+          && isLinkedBorrower(lenderUid, request.resource.data.borrowerId)
+          && loanBelongsTo(lenderUid, request.resource.data.loanId, request.resource.data.borrowerId);
+      }
+    }
+
+    // Invitations addressed to a phone number.
+    match /borrowerLinks/{phone} {
+      // Legacy array format: readable by the owner of that phone; no new writes.
+      allow read: if signedIn() && phone == myPhone();
+
+      match /invites/{inviteId} {
+        allow read: if signedIn()
+          && (phone == myPhone() || resource.data.lenderUid == request.auth.uid);
+
+        // Only a lender, only for their own borrower record.
+        allow create, update: if signedIn()
+          && request.resource.data.lenderUid == request.auth.uid
+          && inviteId == request.auth.uid + '_' + request.resource.data.borrowerId
+          && request.resource.data.status == 'pending'
+          && exists(/databases/$(database)/documents/users/$(request.auth.uid)/borrowers/$(request.resource.data.borrowerId));
+
+        // The invited person accepts or declines.
+        allow update: if signedIn()
+          && phone == myPhone()
+          && onlyChanges(['status', 'acceptedBy', 'acceptedAt'])
+          && request.resource.data.status in ['accepted', 'declined']
+          && request.resource.data.acceptedBy == request.auth.uid;
+
+        allow delete: if signedIn() && resource.data.lenderUid == request.auth.uid;
+      }
+    }
+
+    // Each signed-in person's list of accepted lender links (pointers only).
+    match /borrowerAccess/{uid} {
+      allow read, write: if isUser(uid);
+    }
+
+    // Family-access invitations addressed to a phone number.
+    match /familyLinks/{phone}/invites/{lenderUid} {
+      allow read: if signedIn() && (phone == myPhone() || lenderUid == request.auth.uid);
+      allow create, update: if isUser(lenderUid)
+        && request.resource.data.lenderUid == lenderUid
+        && request.resource.data.status in ['pending', 'revoked'];
+      allow update: if signedIn()
+        && phone == myPhone()
+        && onlyChanges(['status', 'acceptedBy', 'acceptedAt'])
+        && request.resource.data.status in ['accepted', 'declined']
+        && request.resource.data.acceptedBy == request.auth.uid;
+      allow delete: if isUser(lenderUid);
+    }
+
+    // Each signed-in person's list of lenders whose records they may view.
+    match /familyAccess/{uid} {
+      allow read, write: if isUser(uid);
+    }
+
+    // Everything else is denied by default.
+  }
+}

@@ -1,40 +1,103 @@
 import { useMemo, useState } from "react";
-import { Card, SectionTitle } from "../components/Card";
-import { Field, SelectInput, TextInput } from "../components/FormControls";
-import { ChartBars } from "../components/ChartBars";
-import { buildMonthlyBreakdown, currency } from "../utils/loanMath";
+import { useCopy } from "../i18n/useCopy";
+import { addMonths, calculateLoan, daysBetween, formatPaise, monthsAndDays, rupeesToPaise, toDateKey } from "../utils/interestEngine";
+import { Card, DetailRow, Field, Input, MoneyHero, Notice, Screen, Section, Segmented } from "../ui";
+import { calculatorCopy } from "./InterestCalculator.copy";
 
+// Uses the same interest engine as real loans, on a made-up loan with no
+// payments. Nothing is saved.
 export function InterestCalculator() {
-  const [principal, setPrincipal] = useState(30000);
-  const [rate, setRate] = useState(24);
-  const [type, setType] = useState("Simple");
-  const rows = useMemo(() => buildMonthlyBreakdown({ principal, interestRate: rate, interestType: type, months: 6, cycle: "monthly" }), [principal, rate, type]);
+  const s = useCopy(calculatorCopy);
+  const today = toDateKey(new Date());
+  const [amount, setAmount] = useState("10000");
+  const [rate, setRate] = useState("2");
+  const [rateUnit, setRateUnit] = useState("month");
+  const [method, setMethod] = useState("simple");
+  const [compounding, setCompounding] = useState("monthly");
+  const [startDate, setStartDate] = useState(addMonths(today, -6));
+  const [asOf, setAsOf] = useState(today);
+
+  const calc = useMemo(() => {
+    const principalPaise = rupeesToPaise(amount);
+    const ratePercent = rate === "" ? NaN : Number(rate);
+    const loan = {
+      terms: {
+        principalPaise,
+        ratePercent,
+        rateUnit,
+        method,
+        ...(method === "compound" ? { compounding } : {}),
+        startDate,
+        pauses: []
+      }
+    };
+    return calculateLoan(loan, [], asOf);
+  }, [amount, rate, rateUnit, method, compounding, startDate, asOf]);
+
+  const ok = calc.status === "ok";
+  const span = ok ? { ...monthsAndDays(startDate, asOf), total: daysBetween(startDate, asOf) } : null;
+  const p = ok ? formatPaise(calc.principalPaise) : "";
+  const i = ok ? formatPaise(calc.interestAccruedPaise) : "";
+
   return (
-    <div className="mx-auto max-w-3xl md:ml-56">
-      <h1 className="text-2xl font-black text-slate-950">Interest Calculator</h1>
-      <div className="mt-4 grid gap-4 md:grid-cols-[1fr_1fr]">
-        <Card>
-          <div className="grid gap-4">
-            <Field label="Amount"><TextInput type="number" value={principal} onChange={(e) => setPrincipal(Number(e.target.value))} /></Field>
-            <Field label="Interest %"><TextInput type="number" value={rate} onChange={(e) => setRate(Number(e.target.value))} /></Field>
-            <Field label="Interest type"><SelectInput value={type} onChange={(e) => setType(e.target.value)}><option>Simple</option><option>Compound</option></SelectInput></Field>
-            <Field label="Repayment style"><SelectInput><option>Monthly</option><option>Seasonal</option></SelectInput></Field>
+    <Screen title={s.title} subtitle={s.subtitle} back>
+      <Card>
+        <div className="grid gap-4">
+          <Field label={s.amount}>
+            <Input type="number" inputMode="decimal" min="0" value={amount} onChange={(e) => setAmount(e.target.value)} />
+          </Field>
+          <Field label={s.rate} hint={s.rateHint}>
+            <Input type="number" inputMode="decimal" min="0" step="0.01" value={rate} onChange={(e) => setRate(e.target.value)} />
+          </Field>
+          <Field label={s.per}>
+            <Segmented value={rateUnit} onChange={setRateUnit} options={[{ value: "month", label: s.perMonth }, { value: "year", label: s.perYear }]} />
+          </Field>
+          <Field label={s.method}>
+            <Segmented value={method} onChange={setMethod} options={[{ value: "simple", label: s.simple }, { value: "compound", label: s.compound }]} />
+          </Field>
+          {method === "compound" && (
+            <Field label={s.compounding}>
+              <Segmented
+                value={compounding}
+                onChange={setCompounding}
+                options={[{ value: "weekly", label: s.weekly }, { value: "monthly", label: s.monthly }, { value: "yearly", label: s.yearly }]}
+              />
+            </Field>
+          )}
+          <div className="grid grid-cols-2 gap-3">
+            <Field label={s.startDate}>
+              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+            </Field>
+            <Field label={s.asOf}>
+              <Input type="date" value={asOf} onChange={(e) => setAsOf(e.target.value)} />
+            </Field>
           </div>
-        </Card>
-        <Card>
-          <SectionTitle title="Payment timeline" />
-          <ChartBars data={rows.map((r) => ({ label: r.label.replace(" నెల", ""), value: r.total }))} color="bg-marigold-500" />
-          <p className="mt-4 text-3xl font-black text-leaf-700">{currency(rows.at(-1)?.total)}</p>
-        </Card>
-      </div>
-      <Card className="mt-4">
-        <SectionTitle title="Monthly breakdown" />
-        {rows.map((row) => (
-          <div key={row.label} className="grid grid-cols-3 border-b border-slate-100 py-3 text-sm last:border-0">
-            <b>{row.label}</b><span>{currency(row.interest)} interest</span><b className="text-right">{currency(row.total)}</b>
-          </div>
-        ))}
+        </div>
       </Card>
-    </div>
+
+      {!ok ? (
+        <Notice tone="warning">{s.fixInputs}</Notice>
+      ) : (
+        <>
+          <MoneyHero label={s.total} value={formatPaise(calc.outstandingPaise)} caption={`${s.period}: ${s.duration(span.months, span.days, span.total)}`} />
+          <Section title={s.result}>
+            <Card>
+              <DetailRow label={s.principal} value={p} />
+              <DetailRow label={s.interest} value={i} />
+              <DetailRow label={s.total} value={formatPaise(calc.outstandingPaise)} strong />
+            </Card>
+          </Section>
+          <Notice tone="info">
+            <p>
+              {method === "simple"
+                ? s.explainSimple(p, rate, s.unitText[rateUnit], i)
+                : s.explainCompound(p, rate, s.unitText[rateUnit], s.everyText[compounding], i)}
+            </p>
+            <p className="mt-2">{rateUnit === "month" ? s.timeRuleMonth : s.timeRuleYear}</p>
+            <p className="mt-2">{s.noPayments}</p>
+          </Notice>
+        </>
+      )}
+    </Screen>
   );
 }

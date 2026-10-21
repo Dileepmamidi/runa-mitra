@@ -1,82 +1,212 @@
-import { useParams, Link } from "react-router-dom";
-import { ArrowLeft, CheckCircle2, AlertCircle } from "lucide-react";
+import { Link, useParams } from "react-router-dom";
+import { CalendarClock, HelpCircle, Landmark, ThumbsDown, Wallet } from "lucide-react";
 import { useApp } from "../../context/AppContext";
-import { currency } from "../../utils/loanMath";
-import { Card, SectionTitle } from "../../components/Card";
+import { useCopy } from "../../i18n/useCopy";
+import { LoanBreakdown } from "../../components/LoanBreakdown";
+import { VoiceSummary } from "../../components/VoiceSummary";
+import { formatPaise, rupeesToPaise, termsFromLoan, toDateKey } from "../../utils/interestEngine";
+import { Badge, Button, Card, DetailRow, EmptyState, Notice, Screen, Section } from "../../ui";
+import {
+  changeAcknowledgement, changeKey, collateralForLoan, dateKeyOf, dueText, guarantorsForLoan, spokenAmountParts, useBorrowerLoans
+} from "./borrowerData";
+import { AcknowledgeButton, AcknowledgedLine, LoanSecurityRecords } from "./BorrowerLoanRecords";
+import { borrowerSharedCopy } from "./BorrowerShared.copy";
+import { borrowerLoanDetailsCopy } from "./BorrowerLoanDetails.copy";
+
+const lower = (v) => (typeof v === "string" ? v.toLowerCase() : v);
+
+// Turns one termsHistory entry into a list of { field, from, to } changes.
+// Accepts { changes: [{ field, from, to }] }, { field, from, to } or
+// { previous: {...}, next: {...} } shaped entries.
+function changeLines(entry) {
+  if (!entry || typeof entry !== "object") return [];
+  if (Array.isArray(entry.changes)) {
+    return entry.changes.map((c) => ({ field: c.field, from: c.from ?? c.previous ?? c.old, to: c.to ?? c.next ?? c.new }));
+  }
+  if (entry.field) return [{ field: entry.field, from: entry.from ?? entry.previous ?? entry.old, to: entry.to ?? entry.next ?? entry.new }];
+  const before = entry.previous || entry.before || entry.old || {};
+  const after = entry.next || entry.after || entry.new || {};
+  if (typeof before !== "object" || typeof after !== "object") return [];
+  const keys = [...new Set([...Object.keys(before), ...Object.keys(after)])]
+    .filter((k) => !["engineVersion", "source", "allocation"].includes(k));
+  return keys
+    .filter((k) => JSON.stringify(before[k]) !== JSON.stringify(after[k]))
+    .map((k) => ({ field: k, from: before[k], to: after[k] }));
+}
 
 export function BorrowerLoanDetails() {
   const { id } = useParams();
-  const { loans, payments } = useApp();
-  
-  const loan = loans.find(l => l.id === id);
-  const loanPayments = payments.filter(p => p.loanId === id);
-  
-  if (!loan) return <div className="p-8 text-center text-xl font-bold">Loan not found</div>;
+  const { payments, user, language, guarantors, collateral } = useApp();
+  const s = useCopy(borrowerLoanDetailsCopy);
+  const sh = useCopy(borrowerSharedCopy);
+  const item = useBorrowerLoans().find((x) => x.loan.id === id);
 
-  const totalPaid = loanPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
-  const isCleared = loan.balance <= 0;
+  if (!item) {
+    return (
+      <Screen title={s.title} back="/home">
+        <EmptyState icon={Landmark} title={s.notFoundTitle} text={s.notFoundText} action={<Button to="/home">{s.goHome}</Button>} />
+      </Screen>
+    );
+  }
+
+  const { loan, calc, due } = item;
+  const terms = termsFromLoan(loan) || {};
+  const method = lower(terms.method);
+  const principalOk = Number.isInteger(terms.principalPaise) && terms.principalPaise > 0;
+  const rateOk = Number.isFinite(terms.ratePercent) && terms.ratePercent >= 0;
+  const repaymentRaw = terms.repayment || terms.repaymentType || loan.repaymentType || "";
+  const repayment = repaymentRaw ? s.repaymentTypes[repaymentRaw] || repaymentRaw : sh.notRecorded;
+  const dueDate = toDateKey(loan.dueDate) || toDateKey(terms.dueDate);
+  const pauses = (terms.pauses || []).map((p) => ({ from: toDateKey(p.from), to: toDateKey(p.to) })).filter((p) => p.from && p.to);
+  const history = Array.isArray(loan.termsHistory) ? [...loan.termsHistory] : [];
+  history.sort((a, b) => (dateKeyOf(b?.changedAt || b?.date || b?.at || b?.createdAt) || "").localeCompare(dateKeyOf(a?.changedAt || a?.date || a?.at || a?.createdAt) || ""));
+
+  const loanGuarantors = guarantorsForLoan(loan, guarantors);
+  const loanCollateral = collateralForLoan(loan, collateral);
+
+  // Plain-language summary for reading aloud, from the engine result only.
+  const money = (paise) => s.money(spokenAmountParts(paise));
+  const voiceText = calc.status !== "ok"
+    ? s.voiceUnclear
+    : calc.settled
+      ? s.voiceSettled
+      : [
+        s.voiceOk({
+          principal: money(calc.principalPaise),
+          start: toDateKey(calc.terms?.startDate) ? sh.date(toDateKey(calc.terms.startDate)) : "",
+          interest: money(calc.interestAccruedPaise),
+          paid: money(calc.totalPaidPaise),
+          owed: money(calc.outstandingPaise)
+        }),
+        due ? s.voiceDue(`${dueText(sh, due)}, ${sh.date(due.date)}`) : ""
+      ].filter(Boolean).join(" ");
+
+  const formatValue = (field, value) => {
+    if (value === undefined || value === null || value === "") return sh.notRecorded;
+    switch (field) {
+      case "principalPaise": return formatPaise(Number(value));
+      case "principal": return formatPaise(rupeesToPaise(value));
+      case "ratePercent":
+      case "interestRate": return `${value}%`;
+      case "rateUnit": return s.unitValue[value] || String(value);
+      case "method":
+      case "interestType": return s.methodShort[lower(value)] || String(value);
+      case "compounding":
+      case "cycle": return s.frequency[lower(value)] || String(value);
+      case "startDate":
+      case "loanDate":
+      case "dueDate": return sh.date(dateKeyOf(value)) || String(value);
+      case "pauses": return Array.isArray(value) ? s.pauseCount(value.length) : String(value);
+      case "repaymentType": return s.repaymentTypes[value] || String(value);
+      default: return typeof value === "object" ? JSON.stringify(value) : String(value);
+    }
+  };
 
   return (
-    <div className="mx-auto max-w-2xl">
-      <Link to="/home" className="mb-6 inline-flex items-center text-sm font-bold text-slate-500 hover:text-slate-900">
-        <ArrowLeft size={16} className="mr-2" /> వెనుకకు (Back)
-      </Link>
-      
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-3xl font-black text-slate-950">రుణ వివరాలు (Details)</h2>
-        {isCleared ? (
-          <div className="flex items-center gap-1 rounded-full bg-leaf-100 px-3 py-1 text-sm font-bold text-leaf-800">
-            <CheckCircle2 size={16} /> Cleared
-          </div>
+    <Screen
+      title={sh.loanFrom(loan.lenderName)}
+      back="/home"
+      actions={calc.status !== "ok" ? <Badge tone="amber">{sh.needsClarification}</Badge> : calc.settled ? <Badge tone="brand">{sh.settled}</Badge> : null}
+    >
+      {due && (
+        <Notice tone={due.overdue ? "warning" : "info"} title={dueText(sh, due)}>
+          {due.days <= 30 ? sh.dueOn(sh.date(due.date)) : null}
+        </Notice>
+      )}
+
+      <VoiceSummary text={voiceText} lang={language === "en" ? "en" : "te"} />
+
+      <Section title={s.terms}>
+        <Card>
+          <DetailRow label={s.lender} value={sh.lender(loan.lenderName)} />
+          <DetailRow label={s.principal} value={principalOk ? formatPaise(terms.principalPaise) : sh.notRecorded} strong={principalOk} />
+          <DetailRow label={s.dateReceived} value={toDateKey(terms.startDate) ? sh.date(toDateKey(terms.startDate)) : sh.notRecorded} />
+          <DetailRow
+            label={s.rate}
+            value={!rateOk ? sh.notRecorded : ["month", "year"].includes(terms.rateUnit) ? s.rateValue(terms.ratePercent, terms.rateUnit) : s.rateUnitMissing(terms.ratePercent)}
+          />
+          <DetailRow label={s.method} value={method === "simple" ? s.simple : method === "compound" ? s.compound : sh.notRecorded} />
+          {method === "compound" && (
+            <DetailRow label={s.compounding} value={s.frequency[lower(terms.compounding)] || sh.notRecorded} />
+          )}
+          <DetailRow label={s.repayment} value={repayment} />
+          <DetailRow label={s.dueDate} value={dueDate ? sh.date(dueDate) : sh.noDueDate} />
+          {pauses.length > 0 && (
+            <DetailRow label={s.pauses} value={pauses.map((p) => s.pauseRange(sh.date(p.from), sh.date(p.to))).join(", ")} />
+          )}
+        </Card>
+      </Section>
+
+      <Notice tone="info" title={s.howApplied}>{s.howAppliedText}</Notice>
+
+      <LoanBreakdown loan={loan} payments={payments.filter((p) => !p.lenderUid || p.lenderUid === loan.lenderUid)} />
+
+      <Section title={s.changes}>
+        {history.length === 0 ? (
+          <Card><p className="text-[15px] font-medium text-ink-muted">{s.noChanges}</p></Card>
         ) : (
-          <div className="flex items-center gap-1 rounded-full bg-warning-100 px-3 py-1 text-sm font-bold text-warning-800">
-            <AlertCircle size={16} /> Active
+          <div className="grid gap-3">
+            {history.map((entry, i) => {
+              const when = dateKeyOf(entry?.changedAt || entry?.date || entry?.at || entry?.createdAt);
+              const lines = changeLines(entry);
+              const key = changeKey(entry);
+              const ack = changeAcknowledgement(loan, entry, user?.uid);
+              return (
+                <Card key={key || i}>
+                  <p className="text-[15px] font-bold text-ink">{when ? s.changedOn(sh.date(when)) : s.dateUnknown}</p>
+                  {lines.map((c, j) => (
+                    <div key={j} className="mt-3 rounded-xl bg-canvas p-3">
+                      <p className="text-[13px] font-bold text-ink-muted">{s.fields[c.field] || c.field}</p>
+                      <p className="mt-1 text-[15px] font-semibold text-ink-soft">{s.before}: <span className="text-ink line-through decoration-ink-muted/60">{formatValue(c.field, c.from)}</span></p>
+                      <p className="text-[16px] font-bold text-ink">{s.after}: {formatValue(c.field, c.to)}</p>
+                    </div>
+                  ))}
+                  {(entry?.reason || entry?.note) && (
+                    <p className="mt-3 text-[15px] font-medium text-ink-soft"><span className="font-bold">{s.reason}:</span> {entry.reason || entry.note}</p>
+                  )}
+                  <div className="mt-4 border-t border-line pt-4">
+                    {ack ? (
+                      <AcknowledgedLine ack={ack} />
+                    ) : !key ? (
+                      <p className="text-[14px] font-medium text-ink-muted">{s.cannotAck}</p>
+                    ) : (
+                      <>
+                        <p className="mb-3 text-[15px] font-bold text-amber-700">{s.changeStatusPending}</p>
+                        <AcknowledgeButton
+                          label={s.agreeChange}
+                          lenderUid={loan.lenderUid}
+                          collectionName="loans"
+                          docId={loan.id}
+                          extra={{ kind: "change", changeId: key }}
+                        >
+                          <Link
+                            to={`/help?loan=${loan.id}&topic=loan_change`}
+                            className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-xl border border-line bg-white px-5 text-[17px] font-bold text-rose-700 active:bg-rose-50"
+                          >
+                            <ThumbsDown size={22} /> {s.disagreeChange}
+                          </Link>
+                        </AcknowledgeButton>
+                      </>
+                    )}
+                  </div>
+                </Card>
+              );
+            })}
           </div>
         )}
+      </Section>
+
+      {(loanGuarantors.length > 0 || loanCollateral.length > 0) && (
+        <Section title={s.security}>
+          <LoanSecurityRecords guarantors={loanGuarantors} collateral={loanCollateral} />
+        </Section>
+      )}
+
+      <div className="grid gap-3">
+        <Button size="lg" block icon={Wallet} to="/payments">{s.history}</Button>
+        <Button size="lg" variant="secondary" block icon={CalendarClock} to={`/extensions/new?loanId=${loan.id}`}>{s.moreTime}</Button>
+        <Button size="lg" variant="secondary" block icon={HelpCircle} to={`/help?loan=${loan.id}`}>{s.ask}</Button>
       </div>
-
-      <Card className="mb-6">
-        <div className="grid grid-cols-2 gap-y-6 gap-x-4">
-          <div>
-            <p className="text-sm font-bold text-slate-500">అసలు (Principal)</p>
-            <p className="text-2xl font-black text-slate-950">{currency(loan.principal)}</p>
-          </div>
-          <div>
-            <p className="text-sm font-bold text-slate-500">బకాయి (Pending)</p>
-            <p className="text-2xl font-black text-danger-600">{currency(loan.balance)}</p>
-          </div>
-          <div>
-            <p className="text-sm font-bold text-slate-500">వడ్డీ రేటు (Rate)</p>
-            <p className="text-lg font-bold text-slate-900">{loan.interestRate}% {loan.interestType}</p>
-          </div>
-          <div>
-            <p className="text-sm font-bold text-slate-500">గడువు తేదీ (Due Date)</p>
-            <p className="text-lg font-bold text-slate-900">{loan.dueDate || "N/A"}</p>
-          </div>
-          <div>
-             <p className="text-sm font-bold text-slate-500">చెల్లింపు విధానం</p>
-             <p className="text-lg font-bold text-slate-900">{loan.cycle || "Monthly"}</p>
-          </div>
-          <div>
-             <p className="text-sm font-bold text-slate-500">Total Paid</p>
-             <p className="text-lg font-bold text-leaf-700">{currency(totalPaid)}</p>
-          </div>
-        </div>
-      </Card>
-
-      <Card>
-        <SectionTitle title="మార్పుల చరిత్ర (Change History)" />
-        <div className="mt-4 rounded-xl bg-slate-50 p-4">
-           <div className="border-l-4 border-leaf-400 pl-4 py-2">
-             <p className="text-sm font-bold text-slate-900">Loan Created</p>
-             <p className="text-xs font-semibold text-slate-500">{new Date(loan.createdAt?.seconds * 1000).toLocaleString() || loan.loanDate}</p>
-             <p className="mt-1 text-sm text-slate-700">Principal: {currency(loan.principal)}, Rate: {loan.interestRate}%</p>
-           </div>
-           
-           {/* In the future, other modifications will be appended here based on a loanChangeHistory collection */}
-           <p className="mt-4 text-xs font-bold text-slate-400 text-center">No other modifications recorded.</p>
-        </div>
-      </Card>
-    </div>
+    </Screen>
   );
 }

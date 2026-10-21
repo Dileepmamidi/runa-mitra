@@ -1,136 +1,153 @@
+import { HandCoins, HelpCircle, Printer, Wallet } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useApp } from "../../context/AppContext";
-import { currency } from "../../utils/loanMath";
-import { Card } from "../../components/Card";
-import { ArrowDownRight, Plus, Printer, CheckCircle2, Clock } from "lucide-react";
-import { useRef } from "react";
+import { useCopy } from "../../i18n/useCopy";
+import { countsAsPaid, formatPaise, paiseToRupees, rupeesToPaise } from "../../utils/interestEngine";
+import { generateReceipt } from "../../utils/receiptGenerator";
+import { Badge, Button, Card, EmptyState, Notice, Screen, Section } from "../../ui";
+import { dateKeyOf, principalPaiseOf, toMillis, useBorrowerLoans, loanLabel } from "./borrowerData";
+import { borrowerSharedCopy } from "./BorrowerShared.copy";
+import { borrowerPaymentHistoryCopy } from "./BorrowerPaymentHistory.copy";
+
+const amountOf = (p) => (Number.isInteger(p.amountPaise) ? p.amountPaise : rupeesToPaise(p.amount));
+const isCancelled = (p) => Boolean(p.reversed || p.reversedBy) || p.status === "reversed";
 
 export function BorrowerPaymentHistory() {
-  const { payments, borrowers, lender } = useApp();
-  const printRef = useRef(null);
-  
-  const myProfile = borrowers[0] || {};
+  const { borrowers } = useApp();
+  const s = useCopy(borrowerPaymentHistoryCopy);
+  const sh = useCopy(borrowerSharedCopy);
+  const items = useBorrowerLoans();
 
-  const handlePrintReceipt = (payment) => {
-    if (!printRef.current) return;
-    
-    // Construct receipt HTML
-    const html = `
-      <html>
-        <head>
-          <title>Payment Receipt</title>
-          <style>
-            body { font-family: sans-serif; padding: 40px; color: #111; max-width: 600px; margin: 0 auto; }
-            .header { text-align: center; border-bottom: 2px solid #ddd; padding-bottom: 20px; margin-bottom: 20px; }
-            .lender-name { font-size: 24px; font-weight: bold; }
-            .receipt-title { font-size: 18px; color: #666; letter-spacing: 2px; text-transform: uppercase; margin-top: 10px; }
-            .row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #eee; }
-            .label { font-weight: bold; color: #555; }
-            .value { font-weight: bold; font-size: 16px; }
-            .amount { font-size: 28px; font-weight: 900; color: #0d9488; text-align: center; margin: 30px 0; }
-            .footer { text-align: center; font-size: 12px; color: #888; margin-top: 40px; border-top: 1px solid #ddd; padding-top: 20px; }
-            .status { display: inline-block; padding: 5px 10px; border-radius: 20px; font-size: 12px; font-weight: bold; background: #dcfce7; color: #166534; }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <div class="lender-name">${lender?.name || "Runa Mitra Lender"}</div>
-            <div>${lender?.village || ""}</div>
-            <div class="receipt-title">Payment Receipt</div>
-          </div>
-          
-          <div class="amount">${currency(payment.amount)}</div>
-          
-          <div class="row">
-            <span class="label">Date:</span>
-            <span class="value">${payment.paymentDate || new Date(payment.createdAt?.seconds * 1000).toLocaleDateString()}</span>
-          </div>
-          <div class="row">
-            <span class="label">Received From:</span>
-            <span class="value">${myProfile.name}</span>
-          </div>
-          <div class="row">
-            <span class="label">Payment Method:</span>
-            <span class="value">${payment.method || "Cash"}</span>
-          </div>
-          ${payment.referenceId ? `
-          <div class="row">
-            <span class="label">Reference ID:</span>
-            <span class="value">${payment.referenceId}</span>
-          </div>` : ''}
-          <div class="row">
-            <span class="label">Status:</span>
-            <span class="value">
-               ${payment.status === 'pending_verification' ? 'Pending Approval' : 'Verified'}
-            </span>
-          </div>
-          
-          <div class="footer">
-            Generated securely via Runa Mitra (Borrower App)
-          </div>
-          <script>
-            window.onload = () => { window.print(); window.close(); }
-          </script>
-        </body>
-      </html>
-    `;
-    
-    const printWindow = window.open("", "_blank");
-    printWindow.document.write(html);
-    printWindow.document.close();
+  const tellButton = <Button size="lg" block icon={HandCoins} to="/payments/new">{s.tellLender}</Button>;
+
+  if (items.length === 0) {
+    return (
+      <Screen title={s.title} subtitle={s.subtitle}>
+        <EmptyState icon={Wallet} title={s.noLoansTitle} text={s.noLoansText} />
+      </Screen>
+    );
+  }
+
+  const printReceipt = (loan, row) => {
+    const me = borrowers.find((b) => b.lenderUid === loan.lenderUid) || borrowers[0] || {};
+    const principal = principalPaiseOf(loan);
+    generateReceipt({
+      paymentDate: row.date,
+      borrowerName: me.name || "",
+      principal: principal ? paiseToRupees(principal) : "",
+      amountPaid: paiseToRupees(row.amountPaise),
+      method: sh.method(row.method)
+    });
   };
 
   return (
-    <div className="mx-auto max-w-2xl pb-10">
-      <div className="mb-6 flex items-center justify-between">
-        <h2 className="text-3xl font-black text-slate-950">చెల్లింపులు (History)</h2>
-        <Link to="/payments/new" className="flex items-center gap-2 rounded-[10px] bg-leaf-600 px-4 py-2 text-sm font-bold text-white shadow-soft hover:bg-leaf-700">
-          <Plus size={18} /> Make Payment
-        </Link>
-      </div>
-      
-      {payments.length === 0 ? (
-        <Card>
-          <p className="text-lg font-bold text-slate-500 text-center py-6">No payments recorded yet.</p>
-        </Card>
-      ) : (
-        <div className="grid gap-4">
-          {payments.map(payment => (
-            <Card key={payment.id} className="relative overflow-hidden">
-              <div className="flex items-start gap-4">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-leaf-100 text-leaf-700">
-                  <ArrowDownRight size={24} />
-                </div>
-                <div className="flex-1">
-                  <p className="text-lg font-black text-slate-950">{currency(payment.amount)}</p>
-                  <p className="text-sm font-bold text-slate-500">{payment.paymentDate || new Date(payment.createdAt?.seconds * 1000).toLocaleDateString()}</p>
-                  
-                  <div className="mt-2 flex items-center gap-2">
-                    <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Via {payment.method || "Cash"}</span>
-                    {payment.status === 'pending_verification' ? (
-                      <span className="flex items-center gap-1 rounded-full bg-warning-100 px-2 py-0.5 text-[10px] font-bold text-warning-700">
-                        <Clock size={10} /> Pending Verification
-                      </span>
-                    ) : (
-                      <span className="flex items-center gap-1 rounded-full bg-leaf-100 px-2 py-0.5 text-[10px] font-bold text-leaf-700">
-                        <CheckCircle2 size={10} /> Verified
-                      </span>
-                    )}
+    <Screen title={s.title} subtitle={s.subtitle}>
+      {tellButton}
+
+      {items.map(({ loan, calc, payments }) => {
+        const notCounted = payments
+          .filter((p) => !countsAsPaid(p))
+          .sort((a, b) => toMillis(b.createdAt) - toMillis(a.createdAt));
+        const counted = payments.filter(countsAsPaid);
+
+        return (
+          <Section key={`${loan.lenderUid}_${loan.id}`} title={`${sh.loanFrom(loan.lenderName)} · ${loanLabel(loan, sh)}`}>
+            <div className="grid gap-3">
+              {calc.status !== "ok" && <Notice tone="warning" title={s.unclearTitle}>{s.unclearText}</Notice>}
+
+              {calc.status === "ok" && calc.rows.length === 0 && (
+                <Card><p className="text-[15px] font-medium text-ink-muted">{s.noPayments}</p></Card>
+              )}
+
+              {calc.status === "ok" && calc.rows.map((row, i) => (
+                <Card key={row.paymentId || i}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-[15px] font-bold text-ink-soft">{sh.date(row.date)}</p>
+                      <p className="tabular text-[28px] font-extrabold leading-tight text-ink">{formatPaise(row.amountPaise)}</p>
+                      <p className="mt-0.5 text-[14px] font-semibold text-ink-muted">
+                        {sh.method(row.method)} · {row.recordedBy === "borrower" ? sh.byYou : sh.byLender}
+                      </p>
+                    </div>
+                    <Button variant="soft" size="sm" icon={Printer} onClick={() => printReceipt(loan, row)}>{s.receipt}</Button>
                   </div>
-                </div>
-                <button 
-                  onClick={() => handlePrintReceipt(payment)}
-                  className="flex h-10 w-10 items-center justify-center rounded-[8px] bg-slate-100 text-slate-600 hover:bg-slate-200"
-                >
-                  <Printer size={18} />
-                </button>
-              </div>
-            </Card>
-          ))}
-        </div>
-      )}
-      
-      <div ref={printRef} className="hidden" />
-    </div>
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <div className="rounded-xl bg-amber-50 p-3">
+                      <p className="text-[13px] font-bold text-amber-800">{s.toInterest}</p>
+                      <p className="tabular text-[17px] font-extrabold text-ink">{formatPaise(row.toInterestPaise)}</p>
+                    </div>
+                    <div className="rounded-xl bg-brand-50 p-3">
+                      <p className="text-[13px] font-bold text-brand-800">{s.toPrincipal}</p>
+                      <p className="tabular text-[17px] font-extrabold text-ink">{formatPaise(row.toPrincipalPaise)}</p>
+                    </div>
+                  </div>
+                  {row.excessPaise > 0 && (
+                    <p className="mt-2 text-[14px] font-bold text-sky-800">{s.extra}: {formatPaise(row.excessPaise)}</p>
+                  )}
+                  <div className="mt-3 flex items-baseline justify-between gap-3 border-t border-line pt-3">
+                    <span className="text-[14px] font-semibold text-ink-soft">{s.leftAfter}</span>
+                    <span className="tabular text-[17px] font-extrabold text-ink">{formatPaise(row.outstandingAfterPaise)}</span>
+                  </div>
+                </Card>
+              ))}
+
+              {calc.status !== "ok" && (counted.length === 0 ? (
+                <Card><p className="text-[15px] font-medium text-ink-muted">{s.noPayments}</p></Card>
+              ) : (
+                counted
+                  .map((p) => ({ p, date: dateKeyOf(p.effectiveDate) || dateKeyOf(p.paymentDate) || dateKeyOf(p.createdAt) }))
+                  .sort((a, b) => (a.date || "").localeCompare(b.date || ""))
+                  .map(({ p, date }) => (
+                    <Card key={p.id}>
+                      <p className="text-[15px] font-bold text-ink-soft">{date ? sh.date(date) : sh.notRecorded}</p>
+                      <p className="tabular text-[24px] font-extrabold text-ink">{Number.isFinite(amountOf(p)) ? formatPaise(amountOf(p)) : sh.notRecorded}</p>
+                      <p className="text-[14px] font-semibold text-ink-muted">
+                        {sh.method(p.method)} · {p.type === "borrower_submitted" ? sh.byYou : sh.byLender}
+                      </p>
+                    </Card>
+                  ))
+              ))}
+
+              {notCounted.length > 0 && (
+                <>
+                  <p className="mt-2 px-1 text-[13px] font-bold uppercase tracking-wide text-ink-muted">{s.waitingTitle}</p>
+                  {notCounted.map((p) => {
+                    const date = dateKeyOf(p.paymentDate) || dateKeyOf(p.createdAt);
+                    const rejected = p.status === "rejected";
+                    const cancelled = isCancelled(p);
+                    const reason = p.rejectionReason || p.rejectReason;
+                    return (
+                      <Card key={p.id}>
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="text-[15px] font-bold text-ink-soft">{date ? sh.date(date) : sh.notRecorded}</p>
+                          {cancelled
+                            ? <Badge tone="ink">{s.cancelled}</Badge>
+                            : rejected ? <Badge tone="rose">{s.rejected}</Badge> : <Badge tone="amber">{s.pending}</Badge>}
+                        </div>
+                        <p className="tabular text-[24px] font-extrabold text-ink">{Number.isFinite(amountOf(p)) ? formatPaise(amountOf(p)) : sh.notRecorded}</p>
+                        <p className="text-[14px] font-semibold text-ink-muted">{sh.method(p.method)}</p>
+                        {!cancelled && (
+                          <p className="mt-2 text-[14px] font-medium text-ink-soft">{rejected ? s.rejectedText : s.pendingText}</p>
+                        )}
+                        {rejected && reason && (
+                          <p className="mt-1 text-[14px] font-medium text-ink-soft"><span className="font-bold">{s.lenderReason}:</span> {reason}</p>
+                        )}
+                      </Card>
+                    );
+                  })}
+                </>
+              )}
+
+              <Link
+                to={`/help?loan=${loan.id}&topic=missing_payment`}
+                className="flex min-h-12 items-center gap-2 px-1 text-[15px] font-bold text-brand-700"
+              >
+                <HelpCircle size={19} /> {s.reportMissing}
+              </Link>
+            </div>
+          </Section>
+        );
+      })}
+    </Screen>
   );
 }
