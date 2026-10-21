@@ -1,10 +1,11 @@
-import { adminAuth, adminDb } from "../_lib/firebaseAdmin.js";
+import { adminDb } from "../_lib/firebaseAdmin.js";
+import { verifyFirebaseIdToken } from "../_lib/verifyToken.js";
 import { readJson, requireUser, send, wrap } from "../_lib/http.js";
 import { confirmPlanPayment } from "../_lib/planPayments.js";
 import { razorpayKeys } from "../_lib/razorpay.js";
 
 export default wrap(async (req, res) => {
-  const uid = await requireUser(req, (t) => adminAuth().verifyIdToken(t));
+  const uid = await requireUser(req, (t) => verifyFirebaseIdToken(t));
   const body = await readJson(req);
   const result = await confirmPlanPayment({
     db: adminDb(),

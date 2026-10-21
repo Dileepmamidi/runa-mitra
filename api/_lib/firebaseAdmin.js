@@ -1,8 +1,8 @@
-// Firebase Admin for the payment server. In production set
+// Firebase Admin (Firestore only) for the payment server. Sign-in tokens are
+// checked in verifyToken.js. In production set
 // FIREBASE_SERVICE_ACCOUNT to the service-account JSON (Vercel env var).
 // Locally, the Firebase emulators are used when FIRESTORE_EMULATOR_HOST is set.
 import { cert, getApps, initializeApp } from "firebase-admin/app";
-import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 
 function app() {
@@ -19,4 +19,3 @@ function app() {
 }
 
 export const adminDb = () => getFirestore(app());
-export const adminAuth = () => getAuth(app());
