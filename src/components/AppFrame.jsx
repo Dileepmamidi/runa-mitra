@@ -4,6 +4,7 @@ import { UpdateNotice } from "./UpdateNotice";
 import { useApp } from "../context/AppContext";
 import { IconButton } from "../ui";
 import { Logo } from "./Logo";
+import { ProfileMenu } from "./ProfileMenu";
 
 function Tab({ to, label, icon: Icon, badge }) {
   return (
@@ -30,16 +31,26 @@ function Tab({ to, label, icon: Icon, badge }) {
   );
 }
 
-export function TopBar({ title, subtitle, children }) {
+/**
+ * App header. Left: logo, app name and the current role. Right: any extra
+ * buttons (e.g. invitations) and the person's photo/name with the account menu.
+ */
+export function TopBar({ roleLabel, person, profilePath, children }) {
+  const { t } = useApp();
   return (
-    <header className="safe-top sticky top-0 z-20 border-b border-line/70 bg-canvas/90 backdrop-blur-md">
-      <div className="mx-auto flex h-16 max-w-xl items-center gap-3 px-4">
-        <Logo size={40} />
+    <header className="safe-top sticky top-0 z-20 border-b border-line/70 bg-canvas/85 backdrop-blur-md">
+      <div className="mx-auto flex h-16 max-w-xl items-center gap-2.5 px-4">
+        <Logo size={38} />
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[17px] font-extrabold leading-tight text-ink">{title}</p>
-          {subtitle && <p className="truncate text-[13px] font-semibold text-ink-muted">{subtitle}</p>}
+          <p className="truncate text-[18px] font-black leading-tight tracking-tight text-ink">{t.appName}</p>
+          {roleLabel && (
+            <span className="mt-0.5 inline-flex items-center rounded-full bg-brand-100 px-2 py-0.5 text-[11px] font-extrabold uppercase tracking-wide text-brand-800">
+              {roleLabel}
+            </span>
+          )}
         </div>
         {children}
+        {person && <ProfileMenu name={person.name} photoUrl={person.photoUrl} profilePath={profilePath} />}
       </div>
     </header>
   );
@@ -67,7 +78,7 @@ export function AppFrame() {
 
   return (
     <div className="min-h-screen bg-canvas">
-      <TopBar title={lender.name || t.appName} subtitle={`${t.lenderMode}${lender.village ? ` · ${lender.village}` : ""}`}>
+      <TopBar roleLabel={t.lenderMode} person={{ name: lender.name, photoUrl: lender.photoUrl }} profilePath="/profile">
         {pendingInvites.length > 0 && (
           <IconButton icon={Mail} label={t.invitations} badge={pendingInvites.length} onClick={() => navigate("/invitations")} />
         )}

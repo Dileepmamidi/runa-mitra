@@ -83,9 +83,8 @@ export function FamilyView() {
 
   return (
     <div className="min-h-screen bg-canvas">
-      <TopBar title={s.appTitle} subtitle={current ? s.of(lenderName(current)) : ""}>
+      <TopBar roleLabel={s.viewOnly} person={{ name: "" }}>
         {inviteCount > 0 && <IconButton icon={Mail} label={s.invitations} badge={inviteCount} onClick={() => navigate("/invitations")} />}
-        <Badge tone="amber">{s.viewOnly}</Badge>
       </TopBar>
 
       <main className="mx-auto grid max-w-xl grid-cols-1 gap-5 px-4 pb-16 pt-5">
