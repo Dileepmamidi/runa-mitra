@@ -340,7 +340,7 @@ export function RepaymentExtension() {
                 type="button"
                 disabled={disabled}
                 onClick={touch(() => setKind(k))}
-                className={`min-h-14 rounded-2xl border-2 p-4 text-left transition ${active ? "border-brand-500 bg-brand-50" : "border-line bg-white"} disabled:opacity-60`}
+                className={`min-h-14 rounded-2xl border-2 p-4 text-left transition ${active ? "border-brand-500 bg-brand-50" : "border-line bg-surface"} disabled:opacity-60`}
               >
                 <span className="block text-[16px] font-extrabold text-ink">{s.kinds[k]}</span>
                 <span className="mt-1 block text-[14px] font-medium text-ink-soft">

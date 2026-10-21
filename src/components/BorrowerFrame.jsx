@@ -1,6 +1,7 @@
 import { Outlet, useLocation } from "react-router-dom";
 import { Bell, FileText, Home, LayoutGrid, Wallet } from "lucide-react";
 import { NavLink } from "react-router-dom";
+import { UpdateNotice } from "./UpdateNotice";
 import { useApp } from "../context/AppContext";
 import { TabBar, TopBar } from "./AppFrame";
 
@@ -36,6 +37,7 @@ export function BorrowerFrame() {
     <div className="min-h-screen bg-canvas">
       <TopBar title={name || t.appName} subtitle={t.borrowerMode} />
       <main className="mx-auto max-w-xl overflow-x-clip px-4 pb-32 pt-5">
+        <UpdateNotice />
         <Outlet />
       </main>
       <TabBar>

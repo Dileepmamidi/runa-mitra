@@ -39,7 +39,7 @@ export class ErrorBoundary extends Component {
         <p className="max-w-sm text-[16px] font-medium text-ink-soft">{s.text}</p>
         <div className="grid w-full max-w-xs gap-2">
           <a href="/home" className="flex min-h-12 items-center justify-center rounded-xl bg-brand-600 font-bold text-white">{s.home}</a>
-          <button type="button" onClick={() => window.location.reload()} className="min-h-12 rounded-xl border border-line bg-white font-bold text-brand-700">
+          <button type="button" onClick={() => window.location.reload()} className="min-h-12 rounded-xl border border-line bg-surface font-bold text-brand-700">
             {s.reload}
           </button>
         </div>

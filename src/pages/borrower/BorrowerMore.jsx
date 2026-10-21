@@ -3,6 +3,7 @@ import { useApp } from "../../context/AppContext";
 import { useCopy } from "../../i18n/useCopy";
 import { Badge, List, ListRow, Notice, Screen, Section, Segmented } from "../../ui";
 import { borrowerMoreCopy } from "./BorrowerMore.copy";
+import { ThemePicker } from "../../components/ThemePicker";
 
 export function BorrowerMore() {
   const { language, setLanguage, availableRoles, switchRole, logout, pendingInvites } = useApp();
@@ -20,6 +21,8 @@ export function BorrowerMore() {
           options={[{ value: "te", label: "తెలుగు" }, { value: "en", label: "English" }]}
         />
       </Section>
+
+      <ThemePicker />
 
       <List>
         {pendingInvites.length > 0 && (

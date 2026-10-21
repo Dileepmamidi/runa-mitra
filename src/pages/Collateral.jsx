@@ -80,7 +80,7 @@ export function ReturnCollateralForm({ item, onDone, onCancel }) {
   };
 
   return (
-    <div className="grid gap-3 rounded-xl border-2 border-brand-500 bg-white p-3">
+    <div className="grid gap-3 rounded-xl border-2 border-brand-500 bg-surface p-3">
       <p className="text-[17px] font-extrabold text-ink">{s.returnTitle}</p>
       {!confirming ? (
         <>

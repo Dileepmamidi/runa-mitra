@@ -181,7 +181,7 @@ export function BorrowerLoanDetails() {
                         >
                           <Link
                             to={`/help?loan=${loan.id}&topic=loan_change`}
-                            className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-xl border border-line bg-white px-5 text-[17px] font-bold text-rose-700 active:bg-rose-50"
+                            className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-xl border border-line bg-surface px-5 text-[17px] font-bold text-rose-700 active:bg-rose-50"
                           >
                             <ThumbsDown size={22} /> {s.disagreeChange}
                           </Link>

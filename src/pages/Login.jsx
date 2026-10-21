@@ -5,7 +5,8 @@ import { ShieldCheck } from "lucide-react";
 import { auth } from "../config/firebase";
 import { RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
 import { useCopy } from "../i18n/useCopy";
-import { Button, Field, Input, Notice } from "../ui";
+import { Button, Field, Input, Notice, Segmented } from "../ui";
+import { Logo } from "../components/Logo";
 import { loginCopy } from "./Onboarding.copy";
 
 // Returns null when the reCAPTCHA container is not on screen (for example
@@ -26,7 +27,7 @@ function makeVerifier() {
 
 export function Login() {
   const s = useCopy(loginCopy);
-  const { user, authLoading } = useApp();
+  const { user, authLoading, language, setLanguage } = useApp();
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
   const [otpSent, setOtpSent] = useState(false);
@@ -83,7 +84,10 @@ export function Login() {
     } catch (err) {
       console.error("OTP error:", err.code, err.message);
       resetVerifier();
-      setError(s.sendFailed);
+      // Show the real reason (and its code) so problems like SMS billing or
+      // region settings can be fixed instead of guessed.
+      const reason = s.sendErrors[err?.code] || s.sendFailed;
+      setError(err?.code ? `${reason} (${s.errorCode(err.code)})` : reason);
     } finally {
       setLoading(false);
     }
@@ -117,7 +121,16 @@ export function Login() {
   return (
     <main className="safe-top mx-auto flex min-h-screen max-w-md flex-col bg-canvas px-5 pb-8">
       <div className="flex-1 pt-16">
-        <img src="/logo.svg" alt="" className="h-14 w-14 rounded-2xl shadow-soft" />
+        <div className="flex items-center justify-between gap-3">
+          <Logo size={64} />
+          <div className="w-44">
+            <Segmented
+              value={language}
+              onChange={setLanguage}
+              options={[{ value: "te", label: "తెలుగు" }, { value: "en", label: "English" }]}
+            />
+          </div>
+        </div>
         <h1 className="mt-6 text-[30px] font-extrabold leading-tight text-ink">{s.title}</h1>
         <p className="mt-2 text-[16px] font-medium text-ink-soft">{otpSent ? s.sentTo(formattedPhone) : s.subtitle}</p>
 
@@ -127,7 +140,7 @@ export function Login() {
           {!otpSent ? (
             <Field label={s.phone}>
               <div className="flex gap-2">
-                <span className="flex min-h-[52px] items-center rounded-xl border border-line bg-white px-4 text-[16px] font-bold text-ink-soft">+91</span>
+                <span className="flex min-h-[52px] items-center rounded-xl border border-line bg-surface px-4 text-[16px] font-bold text-ink-soft">+91</span>
                 <Input
                   type="tel"
                   inputMode="numeric"

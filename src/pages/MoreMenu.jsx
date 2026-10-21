@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import { useApp } from "../context/AppContext";
 import { useCopy } from "../i18n/useCopy";
+import { ThemePicker } from "../components/ThemePicker";
 import { saveUserProfile } from "../services/firebaseService";
 import { List, ListRow, Notice, Screen, Section, Segmented } from "../ui";
 import { moreMenuCopy } from "./MoreMenu.copy";
@@ -34,6 +35,8 @@ export function MoreMenu() {
         />
         {error && <div className="mt-2"><Notice tone="warning">{error}</Notice></div>}
       </Section>
+
+      <ThemePicker />
 
       <Section title={s.plan}>
         <List>

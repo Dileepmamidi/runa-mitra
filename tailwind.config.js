@@ -2,42 +2,20 @@ import { fileURLToPath } from "node:url";
 
 /** @type {import('tailwindcss').Config} */
 
-// Runa Mitra design tokens. "brand" is the primary colour; the older names
-// (leaf, soil, marigold, danger, warning) are kept as aliases so any screen
-// that still uses them matches the new look.
-const brand = {
-  50: "#effaf6",
-  100: "#d7f2e7",
-  200: "#b0e4d0",
-  300: "#7ccfb3",
-  400: "#43b190",
-  500: "#1f9474",
-  600: "#13775e",
-  700: "#105f4c",
-  800: "#0f4c3e",
-  900: "#0c3f34",
-  950: "#062520"
-};
-const amber = {
-  50: "#fff8eb",
-  100: "#feecc7",
-  200: "#fdd68a",
-  500: "#e59a0b",
-  600: "#c47a06",
-  700: "#9b5a09",
-  800: "#7d470e"
-};
-const rose = {
-  50: "#fff1f1",
-  100: "#ffe0e0",
-  200: "#ffc6c6",
-  500: "#e5484d",
-  600: "#cc2f35",
-  700: "#a8232a",
-  800: "#8b2127"
-};
+// Runa Mitra design tokens. Every colour is a CSS variable (defined for light
+// and dark themes in src/styles.css), so all screens follow the theme.
+// brand = logo teal, amber = logo orange. Older names (leaf, soil, marigold,
+// danger, warning) are aliases so any remaining screen still matches.
+const v = (name) => `rgb(var(--${name}) / <alpha-value>)`;
+const scale = (name, steps) => Object.fromEntries(steps.map((s) => [s, v(`${name}-${s}`)]));
+
+const brand = scale("brand", [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950]);
+const amber = scale("amber", [50, 100, 200, 500, 600, 700, 800]);
+const rose = scale("rose", [50, 100, 200, 500, 600, 700, 800]);
+const info = scale("info", [50, 100, 800, 900]);
 
 export default {
+  darkMode: "class",
   // Absolute paths so scanning works whatever folder the build starts from.
   content: [
     fileURLToPath(new URL("./index.html", import.meta.url)),
@@ -47,14 +25,17 @@ export default {
     extend: {
       colors: {
         brand,
-        canvas: "#f5f6f3",
-        line: "#e6e8e3",
-        ink: { DEFAULT: "#15201c", soft: "#4b5852", muted: "#7a8580" },
         amber,
         rose,
+        sky: info,
+        surface: v("surface"),
+        canvas: v("canvas"),
+        line: v("line"),
+        ink: { DEFAULT: v("ink"), soft: v("ink-soft"), muted: v("ink-muted") },
+        hero: { from: v("hero-from"), to: v("hero-to") },
         // legacy aliases
         leaf: brand,
-        soil: { 50: "#f5f6f3", 100: "#eceee9", 500: "#7a6a52" },
+        soil: { 50: v("canvas"), 100: v("line"), 500: v("ink-muted") },
         marigold: amber,
         warning: amber,
         danger: rose
@@ -65,12 +46,28 @@ export default {
         "3xl": "28px"
       },
       boxShadow: {
-        soft: "0 1px 2px rgba(16, 40, 32, 0.04), 0 4px 16px rgba(16, 40, 32, 0.06)",
-        lift: "0 8px 30px rgba(16, 40, 32, 0.12)",
-        bar: "0 -1px 0 #e6e8e3, 0 -8px 24px rgba(16, 40, 32, 0.05)"
+        soft: "0 1px 2px rgb(var(--shadow) / 0.05), 0 6px 20px rgb(var(--shadow) / 0.07)",
+        lift: "0 12px 34px rgb(var(--shadow) / 0.18)",
+        bar: "0 -1px 0 rgb(var(--line)), 0 -10px 30px rgb(var(--shadow) / 0.06)"
       },
       fontFamily: {
-        sans: ["Inter Variable", "Noto Sans Telugu Variable", "system-ui", "sans-serif"]
+        sans: ["Nunito Variable", "Noto Sans Telugu Variable", "system-ui", "sans-serif"]
+      },
+      keyframes: {
+        "fade-up": { "0%": { opacity: "0", transform: "translateY(10px)" }, "100%": { opacity: "1", transform: "none" } },
+        "fade-in": { "0%": { opacity: "0" }, "100%": { opacity: "1" } },
+        "scale-in": { "0%": { opacity: "0", transform: "scale(0.96)" }, "100%": { opacity: "1", transform: "none" } },
+        pop: { "0%": { transform: "scale(0.9)" }, "60%": { transform: "scale(1.04)" }, "100%": { transform: "scale(1)" } },
+        shimmer: { "0%": { backgroundPosition: "-200% 0" }, "100%": { backgroundPosition: "200% 0" } },
+        float: { "0%,100%": { transform: "translateY(0)" }, "50%": { transform: "translateY(-6px)" } }
+      },
+      animation: {
+        "fade-up": "fade-up 420ms cubic-bezier(.2,.7,.2,1) both",
+        "fade-in": "fade-in 300ms ease-out both",
+        "scale-in": "scale-in 320ms cubic-bezier(.2,.7,.2,1) both",
+        pop: "pop 360ms cubic-bezier(.2,.7,.2,1) both",
+        shimmer: "shimmer 2.4s linear infinite",
+        float: "float 4s ease-in-out infinite"
       }
     }
   },

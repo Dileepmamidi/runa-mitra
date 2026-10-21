@@ -6,9 +6,19 @@
     <meta name="theme-color" content="#0f5a47" />
     <meta name="description" content="Runa Mitra - Smart Digital Loan Ledger for Village Lenders" />
     <link rel="manifest" href="/manifest.webmanifest" />
-    <link rel="icon" href="/logo.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon.png" type="image/png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>Runa Mitra</title>
+    <script>
+      // Apply the saved theme before the page draws (avoids a white flash).
+      (function () {
+        try {
+          var pref = localStorage.getItem("runa-theme") || "system";
+          var dark = pref === "dark" || (pref === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+          if (dark) document.documentElement.classList.add("dark");
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

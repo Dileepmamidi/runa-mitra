@@ -182,7 +182,7 @@ export function BorrowerExtensionRequest() {
                   onClick={() => setOption(value)}
                   aria-pressed={option === value}
                   className={`flex min-h-[72px] flex-col items-start justify-center gap-1 rounded-xl border px-3 py-2 text-left text-[15px] font-bold transition ${
-                    option === value ? "border-brand-500 bg-brand-50 text-brand-800 ring-2 ring-brand-200" : "border-line bg-white text-ink"
+                    option === value ? "border-brand-500 bg-brand-50 text-brand-800 ring-2 ring-brand-200" : "border-line bg-surface text-ink"
                   }`}
                 >
                   <Icon size={22} />

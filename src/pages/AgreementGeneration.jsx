@@ -289,7 +289,7 @@ export function AgreementGeneration() {
       {/* Only visible when printing. */}
       <div className="hidden print:block" lang={paperLanguage}>
         {paperText && (
-          <div className="rounded-lg border-2 border-black p-8 text-black">
+          <div className="rounded-lg border-2 border-black bg-[#ffffff] p-8 text-black">
             <h1 className="mb-2 text-center text-3xl font-black">{paper.heading}</h1>
             {printVersion > 1 ? <p className="mb-6 text-center text-base font-bold">{paper.version(printVersion)}</p> : <div className="mb-6" />}
             <p className="mb-4 text-lg leading-relaxed">{paperText.body}</p>

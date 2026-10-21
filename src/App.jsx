@@ -1,4 +1,4 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { AppFrame } from "./components/AppFrame";
 import { BorrowerFrame } from "./components/BorrowerFrame";
@@ -61,10 +61,17 @@ const Splash = page(() => import("./pages/Splash"), "Splash");
 
 export default function App() {
   const { userRole, authLoading, pendingInvites, pendingFamilyInvites, availableRoles } = useApp();
+  // Let the opening logo animation play once at launch, even if sign-in
+  // loads faster than that.
+  const [introDone, setIntroDone] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setIntroDone(true), 1300);
+    return () => clearTimeout(timer);
+  }, []);
   // A new user whose only connection is a pending invitation sees it first.
   const invitationsFirst = pendingInvites.length + pendingFamilyInvites.length > 0 && availableRoles.length === 0;
 
-  if (authLoading) {
+  if (authLoading || !introDone) {
     return (
       <LoadingScreen />
     );

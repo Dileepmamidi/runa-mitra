@@ -1,0 +1,11 @@
+{
+  "android": {
+    "versionCode": 2,
+    "versionName": "1.1.0",
+    "apkUrl": "https://github.com/Dileepmamidi/runa-mitra/releases/latest/download/runa-mitra.apk",
+    "notes": {
+      "en": "New look with dark mode, UPI payments and other improvements.",
+      "te": "కొత్త రూపం, డార్క్ మోడ్, UPI చెల్లింపులు, ఇంకా మెరుగుదలలు."
+    }
+  }
+}
