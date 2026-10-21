@@ -26,7 +26,7 @@ function Tab({ to, label, icon: Icon }) {
 }
 
 export function BorrowerFrame() {
-  const { t, borrowers } = useApp();
+  const { t, borrowers, lender } = useApp();
   const location = useLocation();
   const showChrome = !["/", "/language", "/login"].includes(location.pathname);
   const name = borrowers[0]?.name || "";
@@ -35,7 +35,7 @@ export function BorrowerFrame() {
 
   return (
     <div className="min-h-screen bg-canvas">
-      <TopBar title={name || t.appName} subtitle={t.borrowerMode} />
+      <TopBar roleLabel={t.borrowerMode} person={{ name, photoUrl: lender?.photoUrl }} profilePath="/more" />
       <main className="mx-auto max-w-xl overflow-x-clip px-4 pb-32 pt-5">
         <UpdateNotice />
         <Outlet />
