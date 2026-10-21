@@ -97,6 +97,21 @@ Test card: 4111 1111 1111 1111, any future expiry, any CVV; test UPI: `success@r
 npm run test:payments   # payment server tests (emulator + fake Razorpay)
 ```
 
+## Releasing an Android update (without a store)
+
+Installed apps check `public/version.json` on the website at start-up and show
+"New version available" when a newer build exists.
+
+1. In `android/app/build.gradle` raise `versionCode` by 1 and set `versionName`.
+2. Build: `npm run android:sync`, then build the APK (Android Studio, or
+   `cd android && ./gradlew assembleRelease` once signing is set up).
+3. GitHub → Releases → Draft a new release → attach the APK named exactly
+   `runa-mitra.apk` → Publish. The link
+   `https://github.com/Dileepmamidi/runa-mitra/releases/latest/download/runa-mitra.apk`
+   always points to the newest one.
+4. Update `public/version.json` with the same `versionCode`/`versionName`
+   and short notes, then push and merge so Vercel publishes it.
+
 ## How amounts are calculated
 
 `src/utils/interestEngine.js` is the only place money is calculated (integer

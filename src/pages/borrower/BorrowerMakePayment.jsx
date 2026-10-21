@@ -145,7 +145,7 @@ export function BorrowerMakePayment() {
                   onClick={() => setPaymentMethod(value)}
                   aria-pressed={paymentMethod === value}
                   className={`flex min-h-14 items-center gap-3 rounded-xl border px-4 text-left text-[16px] font-bold transition ${
-                    paymentMethod === value ? "border-brand-500 bg-brand-50 text-brand-800 ring-2 ring-brand-200" : "border-line bg-white text-ink"
+                    paymentMethod === value ? "border-brand-500 bg-brand-50 text-brand-800 ring-2 ring-brand-200" : "border-line bg-surface text-ink"
                   }`}
                 >
                   <Icon size={22} className="shrink-0" />

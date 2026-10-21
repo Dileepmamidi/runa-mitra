@@ -130,7 +130,7 @@ export function AadhaarVerification() {
             </div>
           </Section>
 
-          <label className="flex min-h-14 cursor-pointer items-start gap-3 rounded-2xl border border-line bg-white p-4 shadow-soft">
+          <label className="flex min-h-14 cursor-pointer items-start gap-3 rounded-2xl border border-line bg-surface p-4 shadow-soft">
             <input type="checkbox" className="mt-0.5 h-6 w-6 shrink-0 accent-brand-600" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
             <span className="text-[15px] font-bold text-ink">{s.consent}</span>
           </label>

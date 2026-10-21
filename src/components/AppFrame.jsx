@@ -1,7 +1,9 @@
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Home, Inbox, LayoutGrid, Plus, UsersRound, Mail } from "lucide-react";
+import { UpdateNotice } from "./UpdateNotice";
 import { useApp } from "../context/AppContext";
 import { IconButton } from "../ui";
+import { Logo } from "./Logo";
 
 function Tab({ to, label, icon: Icon, badge }) {
   return (
@@ -32,7 +34,7 @@ export function TopBar({ title, subtitle, children }) {
   return (
     <header className="safe-top sticky top-0 z-20 border-b border-line/70 bg-canvas/90 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-xl items-center gap-3 px-4">
-        <img src="/logo.svg" alt="" className="h-9 w-9 rounded-xl" />
+        <Logo size={40} />
         <div className="min-w-0 flex-1">
           <p className="truncate text-[17px] font-extrabold leading-tight text-ink">{title}</p>
           {subtitle && <p className="truncate text-[13px] font-semibold text-ink-muted">{subtitle}</p>}
@@ -45,7 +47,7 @@ export function TopBar({ title, subtitle, children }) {
 
 export function TabBar({ children }) {
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-30 bg-white/95 shadow-bar backdrop-blur-md no-print">
+    <nav className="fixed inset-x-0 bottom-0 z-30 bg-surface/95 shadow-bar backdrop-blur-md no-print">
       <div className="safe-bottom mx-auto grid max-w-xl grid-cols-5 gap-1 px-2 pt-1.5">{children}</div>
     </nav>
   );
@@ -71,6 +73,7 @@ export function AppFrame() {
         )}
       </TopBar>
       <main className="mx-auto max-w-xl overflow-x-clip px-4 pb-32 pt-5">
+        <UpdateNotice />
         <Outlet />
       </main>
       <TabBar>

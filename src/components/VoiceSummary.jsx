@@ -112,7 +112,7 @@ export function VoiceSummary({ text, lang = "te" }) {
       aria-label={speaking ? s.stopLabel : s.listenLabel}
       aria-pressed={speaking}
       className={`inline-flex min-h-14 w-full select-none items-center justify-center gap-3 rounded-xl px-5 text-[18px] font-bold transition active:scale-[0.99] ${
-        speaking ? "bg-amber-500 text-ink" : "border border-line bg-white text-brand-700 shadow-soft"
+        speaking ? "bg-amber-500 text-ink" : "border border-line bg-surface text-brand-700 shadow-soft"
       }`}
     >
       {speaking ? <Square size={24} /> : <Volume2 size={26} />}

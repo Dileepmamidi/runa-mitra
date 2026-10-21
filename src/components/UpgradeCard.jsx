@@ -11,7 +11,7 @@ export function UpgradeCard({ feature, limit, text }) {
   return (
     <Card className="border-2 border-dashed border-brand-200 bg-brand-50/60">
       <div className="flex items-start gap-3">
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-brand-700">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-surface text-brand-700">
           <Sparkles size={22} />
         </span>
         <div className="min-w-0 flex-1">

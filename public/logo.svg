@@ -1,31 +1,26 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Runa Mitra">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="172 378 300 268" role="img" aria-label="Runa Mitra">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#1c8f6f"/>
-      <stop offset="1" stop-color="#0b4436"/>
+    <linearGradient id="teal" x1="182" y1="388" x2="462" y2="500" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0a7d73"/>
+      <stop offset="1" stop-color="#16424a"/>
     </linearGradient>
-    <linearGradient id="coin" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#ffc24b"/>
-      <stop offset="1" stop-color="#e0890b"/>
+    <linearGradient id="orange" x1="182" y1="520" x2="462" y2="640" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#eeaa2f"/>
+      <stop offset="1" stop-color="#a65733"/>
     </linearGradient>
+    <linearGradient id="band" x1="0" y1="470" x2="0" y2="535" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0f2f33"/>
+      <stop offset="0.55" stop-color="#1d3a3a"/>
+      <stop offset="1" stop-color="#8a5a2a"/>
+    </linearGradient>
+    <clipPath id="bandClip">
+      <rect x="204" y="462" width="236" height="80" rx="40"/>
+    </clipPath>
   </defs>
-  <rect width="512" height="512" rx="116" fill="url(#bg)"/>
-  <!-- open ledger book -->
-  <path d="M256 392 C210 360 158 350 100 356 V178 C158 170 212 182 256 214 Z" fill="#ffffff"/>
-  <path d="M256 392 C302 360 354 350 412 356 V178 C354 170 300 182 256 214 Z" fill="#e3f4ec"/>
-  <!-- ruled lines -->
-  <g stroke="#1c8f6f" stroke-width="12" stroke-linecap="round" opacity="0.9">
-    <path d="M136 236 C170 232 200 238 224 250"/>
-    <path d="M136 282 C170 278 200 284 224 296"/>
-    <path d="M288 250 C312 238 342 232 376 236"/>
-    <path d="M288 296 C312 284 342 278 376 282"/>
-  </g>
-  <!-- coin with rupee mark, resting on the spine -->
-  <circle cx="256" cy="146" r="66" fill="url(#coin)"/>
-  <circle cx="256" cy="146" r="66" fill="none" stroke="#ffffff" stroke-width="10" opacity="0.9"/>
-  <g stroke="#ffffff" stroke-width="13" stroke-linecap="round" stroke-linejoin="round" fill="none">
-    <path d="M226 116 H286"/>
-    <path d="M226 140 H286"/>
-    <path d="M232 116 C276 116 276 164 232 164 L276 186"/>
-  </g>
+  <!-- lower piece (orange): rounded ends, notch underneath, rising to a peak on top -->
+  <path fill="url(#orange)" d="M320 583 C300 583 292 635 245 635 C205 635 182 607 182 578 C182 546 202 522 236 522 C270 522 298 488 320 486 C342 488 370 522 404 522 C438 522 462 546 462 578 C462 607 435 635 395 635 C350 635 340 583 320 583 Z"/>
+  <!-- dark band where the two pieces meet -->
+  <path clip-path="url(#bandClip)" fill="url(#band)" d="M190 478 C210 500 236 502 262 492 C286 482 300 466 320 466 C340 466 354 482 378 492 C404 502 430 500 454 478 L 456 540 C440 528 422 522 404 522 C370 522 342 488 320 486 C298 488 270 522 236 522 C218 522 202 528 188 540 Z"/>
+  <!-- upper piece (teal): notch on top, soft hill underneath -->
+  <path fill="url(#teal)" d="M320 440 C300 440 292 388 245 388 C205 388 182 416 182 445 C182 476 202 500 234 500 C266 500 292 466 320 466 C348 466 374 500 406 500 C438 500 462 476 462 445 C462 416 435 388 395 388 C350 388 340 440 320 440 Z"/>
 </svg>

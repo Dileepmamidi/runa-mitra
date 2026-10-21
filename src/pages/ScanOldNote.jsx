@@ -106,14 +106,14 @@ function SideEditor({ label, side, onChange, s }) {
   return (
     <Card className="grid gap-3">
       <p className="text-[17px] font-extrabold text-ink">{label}</p>
-      <label className="flex min-h-[56px] cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-line bg-white px-4 text-[15px] font-bold text-brand-700 active:bg-canvas">
+      <label className="flex min-h-[56px] cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-line bg-surface px-4 text-[15px] font-bold text-brand-700 active:bg-canvas">
         <Camera size={20} />
         {side.file ? s.change : s.takePhoto}
         <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => pick(e.target.files?.[0] || null)} />
       </label>
       {side.img && (
         <>
-          <canvas ref={canvasRef} className="mx-auto max-h-[420px] w-auto max-w-full rounded-xl border border-line bg-white" />
+          <canvas ref={canvasRef} className="mx-auto max-h-[420px] w-auto max-w-full rounded-xl border border-line bg-surface" />
           <Button variant="secondary" icon={RotateCw} onClick={() => onChange({ ...side, rotation: (side.rotation + 90) % 360 })}>{s.rotate}</Button>
           <div className="grid gap-2 rounded-xl bg-canvas p-3">
             <div className="flex items-center justify-between">
@@ -146,7 +146,7 @@ function SideEditor({ label, side, onChange, s }) {
 function ValueField({ label, field, onValue, onConfirm, s, children }) {
   const low = !field.confirmed && field.confidence !== null && field.confidence < LOW_CONFIDENCE;
   return (
-    <div className={`grid gap-2 rounded-xl p-3 ${low ? "border-2 border-amber-400 bg-amber-50" : "border border-line bg-white"}`}>
+    <div className={`grid gap-2 rounded-xl p-3 ${low ? "border-2 border-amber-400 bg-amber-50" : "border border-line bg-surface"}`}>
       <p className="text-[15px] font-bold text-ink">{label}</p>
       {children || <Input value={field.value} onChange={(e) => onValue(e.target.value)} />}
       {field.raw && <p className="text-[13px] font-medium text-ink-muted">{s.readAs(field.raw)}</p>}
@@ -409,7 +409,7 @@ export function ScanOldNote() {
           <ValueField label={s.witnesses} field={fields.witnesses} onConfirm={(c) => setConfirmed("witnesses", c)} s={s}>
             <TextArea className="min-h-20" value={fields.witnesses.value} onChange={(e) => setValue("witnesses", e.target.value)} />
           </ValueField>
-          <label className="flex items-start gap-3 rounded-xl border border-line bg-white p-3">
+          <label className="flex items-start gap-3 rounded-xl border border-line bg-surface p-3">
             <input type="checkbox" className="mt-1 h-5 w-5 shrink-0 accent-amber-500" checked={imageUnclear} onChange={(e) => setImageUnclear(e.target.checked)} />
             <span>
               <span className="block text-[15px] font-bold text-ink">{s.unclear}</span>

@@ -34,6 +34,43 @@ export function AppProvider({ children }) {
   useEffect(() => {
     document.documentElement.lang = language;
   }, [language]);
+
+  // Theme: "system" (follow the phone), "light" or "dark".
+  const [theme, setThemeState] = useState(() => {
+    try {
+      return localStorage.getItem("runa-theme") || "system";
+    } catch {
+      return "system";
+    }
+  });
+  useEffect(() => {
+    const media = window.matchMedia?.("(prefers-color-scheme: dark)");
+    const apply = () => {
+      const dark = theme === "dark" || (theme === "system" && Boolean(media?.matches));
+      document.documentElement.classList.toggle("dark", dark);
+      document.querySelector('meta[name="theme-color"]')?.setAttribute("content", dark ? "#0b1a1b" : "#f3f8f7");
+      // Native status bar follows the theme (does nothing on the web).
+      import("@capacitor/core").then(({ Capacitor }) => {
+        if (!Capacitor.isNativePlatform()) return;
+        import("@capacitor/status-bar").then(({ StatusBar, Style }) => {
+          StatusBar.setStyle({ style: dark ? Style.Dark : Style.Light }).catch(() => {});
+          StatusBar.setBackgroundColor({ color: dark ? "#0b1a1b" : "#f3f8f7" }).catch(() => {});
+        });
+      });
+    };
+    apply();
+    if (theme !== "system" || !media) return undefined;
+    media.addEventListener?.("change", apply);
+    return () => media.removeEventListener?.("change", apply);
+  }, [theme]);
+  const setTheme = (next) => {
+    try {
+      localStorage.setItem("runa-theme", next);
+    } catch {
+      /* storage unavailable */
+    }
+    setThemeState(next);
+  };
   const [appMode, setAppMode] = useState(localStorage.getItem("runa-mode") || "Basic");
   const [user, setUser] = useState(null);
   
@@ -213,7 +250,7 @@ export function AppProvider({ children }) {
 
   const logout = async () => {
     await signOut(auth);
-    localStorage.removeItem("runa-language");
+    // Keep the chosen language and theme: they belong to the phone, not the account.
     localStorage.removeItem("runa-mode");
   };
 
@@ -286,6 +323,8 @@ export function AppProvider({ children }) {
         localStorage.setItem("runa-language", next);
         setLanguage(next);
       },
+      theme,
+      setTheme,
       appMode,
       setAppMode: (next) => {
         localStorage.setItem("runa-mode", next);
@@ -320,7 +359,7 @@ export function AppProvider({ children }) {
       refreshData,
       switchRole
     }),
-    [appMode, language, user, userRole, availableRoles, borrowerLink, pendingInvites, familyLinks, pendingFamilyInvites, subscription, guarantors, collateral, lender, authLoading, borrowers, loans, payments, reminders, agreements, evidence, messages]
+    [appMode, language, theme, user, userRole, availableRoles, borrowerLink, pendingInvites, familyLinks, pendingFamilyInvites, subscription, guarantors, collateral, lender, authLoading, borrowers, loans, payments, reminders, agreements, evidence, messages]
   );
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

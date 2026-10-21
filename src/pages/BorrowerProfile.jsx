@@ -117,7 +117,7 @@ export function BorrowerProfile() {
         <Avatar name={name} src={borrower.photoUrl || undefined} size={64} />
         <div className="grid flex-1 grid-cols-3 gap-2">
           {borrower.mobile ? (
-            <a href={`tel:${borrower.mobile}`} className="flex min-h-14 flex-col items-center justify-center rounded-xl border border-line bg-white text-[13px] font-bold text-brand-700 shadow-soft active:bg-brand-50">
+            <a href={`tel:${borrower.mobile}`} className="flex min-h-14 flex-col items-center justify-center rounded-xl border border-line bg-surface text-[13px] font-bold text-brand-700 shadow-soft active:bg-brand-50">
               <Phone size={20} />
               {s.call}
             </a>

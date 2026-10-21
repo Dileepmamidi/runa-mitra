@@ -136,7 +136,7 @@ export function BorrowerHelp() {
                   onClick={() => setTopic(value)}
                   aria-pressed={topic === value}
                   className={`flex min-h-14 items-center gap-3 rounded-xl border px-4 py-2 text-left text-[16px] font-bold transition ${
-                    topic === value ? "border-brand-500 bg-brand-50 text-brand-800 ring-2 ring-brand-200" : "border-line bg-white text-ink"
+                    topic === value ? "border-brand-500 bg-brand-50 text-brand-800 ring-2 ring-brand-200" : "border-line bg-surface text-ink"
                   }`}
                 >
                   <Icon size={22} className="shrink-0" />

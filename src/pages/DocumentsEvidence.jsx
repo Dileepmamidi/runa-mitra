@@ -26,7 +26,7 @@ function Toggle({ checked, disabled, onChange, label }) {
       onClick={() => onChange(!checked)}
       className={`relative h-8 w-14 shrink-0 rounded-full transition disabled:opacity-50 ${checked ? "bg-brand-600" : "bg-line"}`}
     >
-      <span className={`absolute top-1 h-6 w-6 rounded-full bg-white shadow-soft transition-all ${checked ? "left-7" : "left-1"}`} />
+      <span className={`absolute top-1 h-6 w-6 rounded-full bg-surface shadow-soft transition-all ${checked ? "left-7" : "left-1"}`} />
     </button>
   );
 }

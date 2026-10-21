@@ -5,6 +5,7 @@ import { TopBar } from "../../components/AppFrame";
 import { useApp } from "../../context/AppContext";
 import { useCopy } from "../../i18n/useCopy";
 import { loadFamilyView } from "../../services/firebaseService";
+import { ThemePicker } from "../../components/ThemePicker";
 import { calculateLoan, countsAsPaid, formatPaise, rupeesToPaise, toDateKey } from "../../utils/interestEngine";
 import { Avatar, Badge, Button, Card, EmptyState, IconButton, List, ListRow, MoneyHero, Notice, Section, Segmented, Select, Spinner } from "../../ui";
 import { familyViewCopy } from "./FamilyView.copy";
@@ -93,6 +94,7 @@ export function FamilyView() {
           onChange={setLanguage}
           options={[{ value: "te", label: "తెలుగు" }, { value: "en", label: "English" }]}
         />
+        <ThemePicker />
 
         <Notice tone="info" title={s.viewOnly}>{s.viewOnlyText}</Notice>
 

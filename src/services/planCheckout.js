@@ -1,6 +1,7 @@
 // Razorpay Checkout for lender plans. The app only opens Checkout; the payment
 // server creates the order (with the price from src/config/plans.js) and
 // verifies the payment before the plan is activated.
+import { Capacitor } from "@capacitor/core";
 import { auth } from "../config/firebase";
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
@@ -47,34 +48,59 @@ async function post(path, body) {
  * result; rejects with { code: "dismissed" | "failed" | "network" | ... }.
  */
 export async function buyPlan({ planId, description, prefillName, prefillContact }) {
-  const [order] = await Promise.all([post("/api/razorpay/create-order", { planId }), loadCheckout()]);
+  const native = Capacitor.isNativePlatform();
+  const [order] = await Promise.all([post("/api/razorpay/create-order", { planId }), native ? null : loadCheckout()]);
+  const options = {
+    key: order.keyId,
+    amount: String(order.amount),
+    currency: order.currency,
+    order_id: order.orderId,
+    name: "Runa Mitra",
+    description,
+    prefill: { name: prefillName || "", contact: (prefillContact || "").replace(/^\+91/, "") },
+    theme: { color: "#0e6e68" }
+  };
+
+  // After Razorpay reports success, the server verifies the payment. If that
+  // fails (e.g. a dropped connection) ask the server to check with Razorpay
+  // directly before reporting an error — the money may already be taken.
+  const confirm = async (response) => {
+    try {
+      return await post("/api/razorpay/verify", response);
+    } catch (err) {
+      try {
+        const recovered = await reconcilePlans();
+        const hit = recovered.activated?.find((a) => a.orderId === order.orderId);
+        if (hit) return hit;
+      } catch {
+        /* fall through to the original error */
+      }
+      throw err;
+    }
+  };
+
+  if (native) {
+    // Android/iOS: Razorpay's native screen, which can open UPI apps
+    // (PhonePe, Google Pay, Paytm…). A web page inside an app cannot.
+    const { Checkout } = await import("capacitor-razorpay");
+    let result;
+    try {
+      result = await Checkout.open(options);
+    } catch (err) {
+      const text = String(err?.message || err || "");
+      const cancelled = /cancel|dismiss|"code":\s*(0|2)\b/i.test(text);
+      throw Object.assign(new Error(text || "failed"), { code: cancelled ? "dismissed" : "failed" });
+    }
+    const raw = result?.response;
+    const response = typeof raw === "string" ? JSON.parse(raw) : raw;
+    return confirm(response);
+  }
+
   return new Promise((resolve, reject) => {
     const checkout = new window.Razorpay({
-      key: order.keyId,
+      ...options,
       amount: order.amount,
-      currency: order.currency,
-      order_id: order.orderId,
-      name: "Runa Mitra",
-      description,
-      prefill: { name: prefillName || "", contact: prefillContact || "" },
-      theme: { color: "#13775e" },
-      handler: async (response) => {
-        try {
-          resolve(await post("/api/razorpay/verify", response));
-        } catch (err) {
-          // Money may have been taken even though confirming failed (for
-          // example a dropped connection). Ask the server to check with
-          // Razorpay directly before reporting an error.
-          try {
-            const recovered = await reconcilePlans();
-            const hit = recovered.activated?.find((a) => a.orderId === order.orderId);
-            if (hit) return resolve(hit);
-          } catch {
-            /* fall through to the original error */
-          }
-          reject(err);
-        }
-      },
+      handler: (response) => confirm(response).then(resolve, reject),
       modal: { ondismiss: () => reject(Object.assign(new Error("dismissed"), { code: "dismissed" })) }
     });
     checkout.on("payment.failed", (resp) =>
